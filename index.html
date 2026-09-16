@@ -1,0 +1,2870 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Пульт — демо игра (без реальной оплаты)</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #000;
+    min-height: 100vh;
+    width: 100%;
+    overflow-x: hidden;
+    font-family: -apple-system, Roboto, Arial, sans-serif;
+  }
+
+  /* ===== ИГРА (fullscreen) ===== */
+  #gameRoot {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background: #000;
+  }
+  #gameRoot.ready { display: block; }
+
+  .wrap {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  .topbar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    z-index: 80;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #e5e7eb;
+    font-size: 14px;
+    padding: 12px 14px;
+    pointer-events: none;
+  }
+  .topbar .balance, .topbar .score {
+    background: rgba(15, 20, 35, 0.85);
+    border: 1px solid rgba(0, 255, 200, 0.25);
+    box-shadow: 0 0 12px rgba(0, 255, 200, 0.15);
+    padding: 7px 14px;
+    border-radius: 12px;
+    font-weight: 600;
+    pointer-events: auto;
+  }
+  .topbar .balance { color: #34d399; }
+  .topbar .score { color: #f3f4f6; }
+  .topbar .inv-btn {
+    background: rgba(15, 20, 35, 0.85);
+    border: 1px solid rgba(168, 85, 247, 0.45);
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.2);
+    padding: 7px 12px;
+    border-radius: 12px;
+    font-weight: 600;
+    color: #e9d5ff;
+    cursor: pointer;
+    pointer-events: auto;
+    font-size: 13px;
+  }
+
+  /* Mood / depression bars */
+  .hud-bars {
+    position: absolute;
+    top: 56px;
+    left: 12px;
+    right: 12px;
+    z-index: 82;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: none;
+  }
+  .hud-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: #e5e7eb;
+  }
+  .hud-bar-row .lbl { min-width: 72px; text-shadow: 0 1px 3px #000; }
+  .hud-bar-track {
+    flex: 1;
+    height: 10px;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.45);
+    border: 1px solid rgba(255,255,255,0.12);
+    overflow: hidden;
+  }
+  .hud-bar-fill {
+    height: 100%;
+    width: 100%;
+    border-radius: 6px;
+    transition: width 0.35s ease;
+  }
+  .hud-bar-fill.mood { background: linear-gradient(90deg, #22c55e, #4ade80); }
+  .hud-bar-fill.dep { background: linear-gradient(90deg, #7c3aed, #ef4444); }
+  #depRow { display: none; }
+  .smoke-btn {
+    pointer-events: auto;
+    margin-top: 4px;
+    align-self: flex-start;
+    padding: 6px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(34, 197, 94, 0.5);
+    background: rgba(15, 30, 20, 0.9);
+    color: #86efac;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .smoke-btn:disabled { opacity: 0.4; cursor: default; }
+
+  /* Inventory panel */
+  .inv-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 5, 15, 0.75);
+    backdrop-filter: blur(5px);
+    z-index: 210;
+    justify-content: center;
+    align-items: center;
+  }
+  .inv-overlay.open { display: flex; }
+  .inv-panel {
+    width: 90%;
+    max-width: 360px;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 20px 18px 16px;
+    border-radius: 18px;
+    background:
+      radial-gradient(ellipse at 30% 15%, rgba(120, 60, 255, 0.22), transparent 55%),
+      linear-gradient(160deg, #0a1228, #0d1a35 55%, #08101f);
+    border: 1px solid rgba(0, 220, 255, 0.35);
+    box-shadow: 0 0 28px rgba(0, 180, 255, 0.25);
+    color: #e8f4ff;
+  }
+  .inv-panel h2 {
+    margin: 0 0 6px;
+    text-align: center;
+    font-size: 18px;
+    color: #7ef9ff;
+  }
+  .inv-panel .sub {
+    text-align: center;
+    font-size: 12px;
+    color: rgba(180,220,255,0.65);
+    margin-bottom: 12px;
+  }
+  .inv-section-title {
+    font-size: 13px;
+    color: #a78bfa;
+    margin: 12px 0 8px;
+    font-weight: 700;
+  }
+  .inv-batt-list { display: flex; flex-direction: column; gap: 8px; min-height: 40px; }
+  .inv-batt-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(0, 220, 255, 0.28);
+    background: rgba(0, 40, 80, 0.35);
+    cursor: pointer;
+  }
+  .inv-batt-item:active { transform: scale(0.98); }
+  .inv-batt-item .tag {
+    font-weight: 800;
+    color: #7ef9ff;
+    font-size: 15px;
+  }
+  .inv-batt-item .meta { font-size: 12px; color: rgba(180,220,255,0.7); }
+  .inv-batt-item .use-lbl {
+    font-size: 12px;
+    color: #34d399;
+    font-weight: 700;
+  }
+  .inv-empty { font-size: 13px; color: rgba(180,220,255,0.5); text-align: center; padding: 12px; }
+  .inv-weed {
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(34, 197, 94, 0.35);
+    background: rgba(10, 40, 20, 0.4);
+  }
+  .inv-weed .w-title { font-weight: 700; color: #86efac; margin-bottom: 6px; }
+  .inv-weed .w-bar {
+    height: 12px;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.4);
+    overflow: hidden;
+  }
+  .inv-weed .w-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #166534, #4ade80);
+    transition: width 0.3s;
+  }
+  .inv-weed .w-pct { margin-top: 6px; font-size: 13px; color: #bbf7d0; }
+
+  /* Dur.png overlay */
+  #durOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 220;
+    background: #000;
+    justify-content: center;
+    align-items: center;
+  }
+  #durOverlay.show { display: flex; }
+  #durOverlay img {
+    max-width: 92%;
+    max-height: 88%;
+    object-fit: contain;
+  }
+
+  .contacts-overlay, .photo-zoom-overlay, .bariga-overlay, .bank-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 230;
+    background: rgba(0, 5, 15, 0.82);
+    backdrop-filter: blur(6px);
+    justify-content: center;
+    align-items: center;
+    padding: 16px;
+  }
+  .contacts-overlay.open, .photo-zoom-overlay.open,
+  .bariga-overlay.open, .bank-overlay.open { display: flex; }
+
+  .contacts-panel {
+    width: 100%;
+    max-width: 380px;
+    max-height: 88vh;
+    overflow-y: auto;
+    background: linear-gradient(180deg, #0f172a, #0a1220);
+    border: 1px solid rgba(0, 220, 255, 0.3);
+    border-radius: 18px;
+    padding: 16px;
+    color: #e8f4ff;
+  }
+  .contacts-panel h2 {
+    margin: 0 0 12px;
+    text-align: center;
+    font-size: 18px;
+    color: #7ef9ff;
+  }
+  .contact-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    cursor: pointer;
+  }
+  .contact-row:active { background: rgba(0, 100, 150, 0.2); }
+  .contact-row.locked { opacity: 0.45; }
+  .contact-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(0, 220, 255, 0.35);
+    flex-shrink: 0;
+  }
+  .contact-name { font-size: 15px; font-weight: 600; flex: 1; }
+  .contact-hint { font-size: 11px; color: #fbbf24; margin-top: 2px; }
+  .psi-hint {
+    display: none;
+    margin: 0 0 10px;
+    padding: 10px;
+    border-radius: 10px;
+    background: rgba(124, 58, 237, 0.25);
+    border: 1px solid rgba(167, 139, 250, 0.4);
+    color: #e9d5ff;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .psi-hint.show { display: block; }
+
+  .photo-zoom-overlay img {
+    max-width: 92vw;
+    max-height: 85vh;
+    border-radius: 12px;
+    object-fit: contain;
+    box-shadow: 0 0 30px rgba(0,0,0,0.6);
+  }
+
+  .mini-modal {
+    width: 100%;
+    max-width: 340px;
+    background: linear-gradient(160deg, #0a1228, #0d1a35);
+    border: 1px solid rgba(0, 220, 255, 0.35);
+    border-radius: 16px;
+    padding: 18px;
+    color: #e8f4ff;
+  }
+  .mini-modal h3 {
+    margin: 0 0 8px;
+    text-align: center;
+    color: #7ef9ff;
+    font-size: 17px;
+  }
+  .mini-modal .sub {
+    text-align: center;
+    font-size: 12px;
+    color: rgba(180,220,255,0.65);
+    margin-bottom: 12px;
+  }
+  .range-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 0;
+  }
+  .range-row input[type=range] { flex: 1; }
+  .range-val { min-width: 52px; text-align: right; font-weight: 700; color: #34d399; }
+
+  #oknoOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 250;
+    background: #000;
+    justify-content: center;
+    align-items: center;
+  }
+  #oknoOverlay.show { display: flex; }
+  #oknoOverlay img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  #psiVideoOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 240;
+    background: #000;
+    justify-content: center;
+    align-items: center;
+  }
+  #psiVideoOverlay.show { display: flex; }
+  #psiVideoOverlay video {
+    max-width: 100%;
+    max-height: 100%;
+  }
+
+  .screen {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: hidden;
+  }
+
+  /* Фон Sid — contain, не на весь экран */
+  .bg-layer {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    max-width: 92%;
+    max-height: 88%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    display: block;
+    z-index: 1;
+    pointer-events: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Видео A/B и reveal — contain по центру, не на весь экран */
+  .screen > img#revealImage,
+  .screen > video,
+  .screen .layer-fill {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: auto;
+    height: auto;
+    max-width: 92%;
+    max-height: 88%;
+    object-fit: contain;
+    display: none;
+    border-radius: 0;
+    z-index: 30;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .layer-fill {
+    display: none;
+  }
+
+  /* Ogida.jpeg / Vahue.jpeg: полностью закрывают игровой экран.
+     Благодаря этому Sid.png не просвечивает по краям, а SVG
+     совпадает с геометрией изображения на всём экране. */
+  .screen > img#revealImage {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    object-fit: fill !important;
+    background: #000;
+    z-index: 30;
+  }
+
+  /* Пульт Pylt.png — правый нижний угол, меньше */
+  .remote-wrap {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    width: 38%;
+    max-width: 160px;
+    z-index: 55;
+    pointer-events: none;
+  }
+  .remote-wrap img#mainScreen {
+    width: 100%;
+    height: auto;
+    display: block;
+    object-fit: contain;
+    pointer-events: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .remote-wrap.hidden { display: none; }
+
+  .hotspot {
+    position: absolute;
+    background: rgba(255,0,0,0);
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    touch-action: manipulation;
+    pointer-events: auto;
+    z-index: 50;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: rgba(255,255,255,0.15);
+    border-radius: 12px;
+  }
+
+  .remote-hotspot {
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px rgba(56,189,248,0.9), 0 0 16px 6px rgba(56,189,248,0.75);
+    animation: pulseGlow 1.4s ease-in-out infinite;
+    pointer-events: auto;
+  }
+  .hotspot:disabled { pointer-events: none; box-shadow: none; animation: none; }
+  @keyframes pulseGlow {
+    0%   { box-shadow: 0 0 0 3px rgba(56,189,248,0.6), 0 0 10px 4px rgba(56,189,248,0.5); }
+    50%  { box-shadow: 0 0 0 4px rgba(56,189,248,1),   0 0 20px 8px rgba(56,189,248,0.85); }
+    100% { box-shadow: 0 0 0 3px rgba(56,189,248,0.6), 0 0 10px 4px rgba(56,189,248,0.5); }
+  }
+
+  .battery-badge {
+    position: absolute;
+    bottom: 14px;
+    right: 14px;
+    width: 52px !important;
+    max-width: 52px !important;
+    height: auto !important;
+    object-fit: contain !important;
+    z-index: 96;
+    pointer-events: none;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.7));
+  }
+
+  .tap-toast {
+    position: absolute;
+    bottom: 16px;
+    left: 12px;
+    z-index: 70;
+    background: rgba(8, 15, 30, 0.9);
+    border: 1px solid rgba(0, 255, 200, 0.3);
+    box-shadow: 0 0 16px rgba(0, 255, 200, 0.2);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    line-height: 1.35;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(8px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .tap-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .tap-toast .last.plus  { color: #4ade80; }
+  .tap-toast .last.minus { color: #f87171; }
+
+  .hint {
+    position: absolute;
+    bottom: 70px;
+    left: 0; right: 0;
+    text-align: center;
+    color: rgba(156, 163, 175, 0.85);
+    font-size: 13px;
+    padding: 0 12px;
+    z-index: 6;
+    pointer-events: none;
+    text-shadow: 0 1px 4px #000;
+  }
+
+  .file-error {
+    display: none;
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 20;
+    background: rgba(30,10,10,0.92);
+    color: #fecaca;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .file-error b { color: #fff; font-size: 16px; }
+
+  .svg-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 40;
+    display: none;
+    overflow: visible;
+  }
+  .svg-overlay.show { display: block; }
+
+  .float-delta {
+    position: absolute;
+    left: 50%;
+    top: 18%;
+    transform: translateX(-50%) translateY(12px);
+    z-index: 45;
+    font-size: 28px;
+    font-weight: 900;
+    opacity: 0;
+    pointer-events: none;
+    text-shadow: 0 3px 14px rgba(0,0,0,0.9);
+    white-space: nowrap;
+  }
+  .float-delta.show {
+    animation: floatUp 1.15s ease-out forwards;
+  }
+  .float-delta.plus { color: #22c55e; }
+  .float-delta.minus { color: #ef4444; }
+  @keyframes floatUp {
+    0%   { opacity: 0; transform: translateX(-50%) translateY(12px) scale(0.75); }
+    18%  { opacity: 1; transform: translateX(-50%) translateY(0) scale(1.08); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-70px) scale(1); }
+  }
+
+  /* ===== NEON MARKET MODAL ===== */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 5, 15, 0.78);
+    backdrop-filter: blur(6px);
+    z-index: 200;
+    justify-content: center;
+    align-items: center;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    position: relative;
+    width: 88%;
+    max-width: 340px;
+    padding: 28px 22px 20px;
+    border-radius: 22px;
+    background:
+      radial-gradient(ellipse at 30% 20%, rgba(120, 60, 255, 0.25), transparent 55%),
+      radial-gradient(ellipse at 80% 80%, rgba(0, 180, 255, 0.18), transparent 50%),
+      linear-gradient(160deg, #0a1228 0%, #0d1a35 50%, #08101f 100%);
+    color: #e8f4ff;
+    border: 2px solid transparent;
+    box-shadow:
+      0 0 0 1px rgba(0, 220, 255, 0.45),
+      0 0 28px rgba(0, 180, 255, 0.35),
+      0 0 60px rgba(140, 60, 255, 0.2),
+      inset 0 0 40px rgba(0, 100, 200, 0.08);
+    overflow: hidden;
+  }
+  .modal::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 24px;
+    padding: 2px;
+    background: linear-gradient(135deg, #00e5ff, #a855f7, #00b4ff, #ff00cc, #00e5ff);
+    background-size: 300% 300%;
+    animation: neonBorder 4s ease infinite;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 0;
+  }
+  @keyframes neonBorder {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  .modal > * { position: relative; z-index: 1; }
+
+  .modal h2 {
+    margin: 0 0 6px;
+    font-size: 19px;
+    text-align: center;
+    color: #7ef9ff;
+    text-shadow: 0 0 14px rgba(0, 230, 255, 0.7);
+    letter-spacing: 0.5px;
+  }
+  .modal p.sub {
+    margin: 0 0 16px;
+    text-align: center;
+    font-size: 13px;
+    color: rgba(180, 220, 255, 0.65);
+  }
+  .pack-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 14px 0 8px;
+  }
+  .pack-btn {
+    width: 100%;
+    text-align: left;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(0, 220, 255, 0.3);
+    background: linear-gradient(145deg, rgba(0, 60, 110, 0.45), rgba(15, 25, 50, 0.9));
+    color: #e8f4ff;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.1s;
+  }
+  .pack-btn:active { transform: scale(0.98); }
+  .pack-btn.selected {
+    border-color: #00e5ff;
+    box-shadow: 0 0 16px rgba(0, 220, 255, 0.35), inset 0 0 12px rgba(0, 180, 255, 0.1);
+    background: linear-gradient(145deg, rgba(0, 100, 160, 0.55), rgba(20, 40, 80, 0.95));
+  }
+  .pack-btn .pack-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #7ef9ff;
+    margin-bottom: 3px;
+  }
+  .pack-btn .pack-desc {
+    font-size: 12px;
+    color: rgba(180, 220, 255, 0.7);
+    line-height: 1.35;
+  }
+  .pack-btn .pack-price {
+    float: right;
+    font-size: 15px;
+    font-weight: 800;
+    color: #34d399;
+  }
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 9px 0;
+    font-size: 14px;
+    color: rgba(180, 220, 255, 0.75);
+  }
+  .info-row b { color: #7ef9ff; text-shadow: 0 0 8px rgba(0, 220, 255, 0.4); }
+  .pay-btn {
+    width: 100%;
+    margin-top: 18px;
+    padding: 14px;
+    border: none;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #00c6ff, #0072ff 50%, #a855f7);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    box-shadow: 0 0 20px rgba(0, 180, 255, 0.45), 0 4px 16px rgba(0,0,0,0.4);
+    cursor: pointer;
+  }
+  .pay-btn:active { transform: scale(0.97); }
+  .pay-btn:disabled { opacity: 0.45; }
+  .close-btn {
+    width: 100%;
+    margin-top: 10px;
+    padding: 11px;
+    border: 1px solid rgba(0, 200, 255, 0.2);
+    border-radius: 12px;
+    background: transparent;
+    color: rgba(160, 200, 230, 0.7);
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  /* ===== INTRO fullscreen ===== */
+  #introOverlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background: #000;
+    z-index: 999998;
+    display: none;
+    justify-content: center;
+    align-items: center;
+  }
+  #introOverlay.show { display: flex; }
+  #introOverlay img {
+    max-width: 92%;
+    max-height: 88%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    display: block;
+  }
+
+  /* ===== PRELOADER ===== */
+  #preloader {
+    position: fixed; top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background: #000;
+    display: flex; justify-content: center; align-items: center;
+    z-index: 999999;
+    transition: opacity 0.9s ease, visibility 0.9s;
+    font-family: 'Share Tech Mono', monospace;
+  }
+  #preloader.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+  .elevator-viewport {
+    position: relative;
+    height: 100vh; max-width: 100vw; max-height: 100vh;
+    aspect-ratio: 840 / 1024;
+    display: flex; justify-content: center; align-items: center;
+    margin: 0 auto;
+  }
+  .elevator-bg-img {
+    width: 100%; height: 100%;
+    object-fit: fill; display: block;
+    pointer-events: none; user-select: none;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+  .elevator-bg-img.loaded { opacity: 1; }
+  .elevator-screen-overlay {
+    position: absolute;
+    top: 31.2%; left: 68.0%;
+    width: 9.4%; height: 5.0%;
+    background: #000;
+    border: 1px solid #00ff66;
+    border-radius: 3px;
+    display: flex; justify-content: center; align-items: center;
+    box-shadow: inset 0 0 8px #000, 0 0 6px rgba(0, 255, 102, 0.4);
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+  .elevator-screen-overlay.loaded { opacity: 1; }
+  #elevatorCounter {
+    font-size: clamp(9px, 1.3vw, 20px);
+    font-weight: 900;
+    color: #00ff66;
+    text-shadow: 0 0 6px #00ff66;
+  }
+  .scanner-btn-wrapper {
+    position: absolute;
+    top: 62.2%; left: 70.0%;
+    width: 5.4%; height: 4.3%;
+    z-index: 999999;
+    display: flex; align-items: center; gap: 8px;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+  .scanner-btn-wrapper.loaded { opacity: 1; }
+  .fingerprint-overlay {
+    width: 100%; height: 100%;
+    border-radius: 6px;
+    cursor: pointer;
+    box-shadow: 0 0 12px rgba(0, 255, 102, 0.8);
+    transition: all 0.3s;
+    background: rgba(0, 255, 102, 0.15);
+    border: 2px solid rgba(0, 255, 102, 0.3);
+    flex-shrink: 0;
+  }
+  .fingerprint-overlay.disabled {
+    opacity: 0.3; pointer-events: none; filter: grayscale(1);
+    background: transparent; box-shadow: none; border-color: transparent;
+  }
+  .fingerprint-overlay:hover:not(.disabled) {
+    box-shadow: 0 0 35px rgba(0, 255, 102, 1);
+    transform: scale(1.08);
+    background: rgba(0, 255, 102, 0.25);
+    border-color: #00ff66;
+  }
+  .scan-hint-text {
+    position: absolute; left: calc(100% + 12px); top: 50%;
+    transform: translateY(-50%);
+    color: #00ff66;
+    font-size: clamp(7px, 0.7vw, 11px);
+    font-weight: 700;
+    text-shadow: 0 0 15px #00ff66, 0 0 30px rgba(0, 255, 102, 0.3);
+    white-space: nowrap; opacity: 0;
+    transition: opacity 0.6s ease;
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 1px; line-height: 1.4;
+    pointer-events: none;
+  }
+  .scan-hint-text.show { opacity: 1; }
+  .scan-hint-text .ukr { display: block; }
+  .scan-hint-text .eng { display: block; font-size: 0.7em; opacity: 0.7; }
+
+  .elevator-status-top {
+    position: absolute; top: 15px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.85);
+    border: 1px solid rgba(0, 255, 102, 0.4);
+    padding: 6px 16px; border-radius: 20px;
+    color: #00ff66;
+    font-size: clamp(0.6rem, 0.9vw, 0.8rem);
+    text-align: center;
+    backdrop-filter: blur(5px);
+    z-index: 3; opacity: 0;
+    transition: opacity 0.6s ease;
+    white-space: nowrap; pointer-events: none;
+  }
+  .elevator-status-top.show { opacity: 1; }
+
+  .scanner-overlay {
+    position: fixed; top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    display: flex; justify-content: center; align-items: center;
+    z-index: 9999999;
+    background: transparent !important;
+    opacity: 0; visibility: hidden;
+    transition: opacity 0.4s ease, visibility 0.4s ease;
+    pointer-events: none;
+  }
+  .scanner-overlay.active { opacity: 1; visibility: visible; pointer-events: auto; }
+  .scanner-card {
+    position: relative;
+    width: 280px; height: 380px;
+    background: rgba(8, 15, 31, 0.95);
+    border-radius: 45px;
+    padding: 18px 16px 14px;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    user-select: none; touch-action: none;
+    backdrop-filter: blur(10px);
+    overflow: hidden;
+    border: 2px solid #00ffc8;
+    box-shadow: 0 0 25px rgba(0, 255, 200, 0.15), inset 0 0 25px rgba(0, 255, 200, 0.05);
+    animation: neonColorShift 5s ease-in-out infinite;
+    transform: scale(0.8);
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: auto;
+  }
+  .scanner-overlay.active .scanner-card { transform: scale(1); }
+  @keyframes neonColorShift {
+    0%, 100% { border-color: #00ffc8; }
+    25% { border-color: #ff00ff; }
+    50% { border-color: #00ccff; }
+    75% { border-color: #ff6600; }
+  }
+  .matrix-bg {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 0; overflow: hidden; border-radius: 42px; pointer-events: none;
+  }
+  .matrix-column {
+    position: absolute; top: -100%;
+    display: flex; flex-direction: column; align-items: center;
+    animation: matrixRain linear infinite;
+  }
+  .matrix-char {
+    color: rgba(0, 255, 100, 0.65);
+    font-family: 'Courier New', monospace;
+    font-weight: bold; line-height: 1.3;
+  }
+  .matrix-char.lead {
+    color: rgba(0, 255, 200, 0.85);
+    text-shadow: 0 0 15px rgba(0, 255, 200, 0.4);
+  }
+  @keyframes matrixRain {
+    0% { transform: translateY(0); opacity: 0; }
+    5% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateY(calc(100% + 80px)); opacity: 0; }
+  }
+  .corner { position: absolute; width: 32px; height: 32px; pointer-events: none; z-index: 2; }
+  .corner::before {
+    content: ''; position: absolute; width: 100%; height: 100%;
+    border: 2.5px solid #00ffc8; border-radius: 6px;
+    filter: drop-shadow(0 0 12px rgba(0, 255, 200, 0.3));
+    animation: cornerColor 5s ease-in-out infinite;
+  }
+  @keyframes cornerColor {
+    0%, 100% { border-color: #00ffc8; }
+    25% { border-color: #ff00ff; }
+    50% { border-color: #00ccff; }
+    75% { border-color: #ff6600; }
+  }
+  .top-left { top: -5px; left: -5px; }
+  .top-left::before { border-right: none; border-bottom: none; border-top-left-radius: 45px; }
+  .top-right { top: -5px; right: -5px; }
+  .top-right::before { border-left: none; border-bottom: none; border-top-right-radius: 45px; }
+  .bottom-left { bottom: -5px; left: -5px; }
+  .bottom-left::before { border-right: none; border-top: none; border-bottom-left-radius: 45px; }
+  .bottom-right { bottom: -5px; right: -5px; }
+  .bottom-right::before { border-left: none; border-top: none; border-bottom-right-radius: 45px; }
+  .status-dot {
+    align-self: flex-start;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #ff2a4a; box-shadow: 0 0 15px #ff2a4a;
+    transition: all 0.4s;
+    margin-left: 4px; margin-top: 2px;
+    flex-shrink: 0; z-index: 3;
+  }
+  .status-dot.success { background: #00ff88; box-shadow: 0 0 25px #00ff88; }
+  .fingerprint-wrapper {
+    position: relative; width: 165px; height: 200px;
+    cursor: pointer;
+    display: flex; justify-content: center; align-items: center;
+    margin: 4px 0 2px;
+    border-radius: 38px; overflow: hidden;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(0, 255, 200, 0.12);
+    z-index: 1;
+    transition: transform 0.2s;
+  }
+  .fingerprint-wrapper:active { transform: scale(0.96); }
+  .fingerprint-image {
+    width: 100%; height: 100%; object-fit: cover;
+    border-radius: 34px; display: block; position: relative; z-index: 2;
+  }
+  .scan-line {
+    position: absolute; left: 5%; width: 90%; height: 2.5px;
+    background: linear-gradient(90deg, transparent, #00ffc8, #00ff88, #00ffc8, transparent);
+    box-shadow: 0 0 25px #00ffc8;
+    border-radius: 100%; opacity: 0; pointer-events: none; top: 5%; z-index: 3;
+  }
+  .scanning .scan-line { opacity: 1; animation: scanMove 1.6s ease-in-out infinite; }
+  @keyframes scanMove {
+    0% { top: 4%; opacity: 0.6; }
+    20% { opacity: 1; }
+    80% { opacity: 1; }
+    100% { top: 93%; opacity: 0.4; }
+  }
+  .arrow-panel {
+    width: 100%; height: 38px;
+    background: rgba(11, 20, 38, 0.6);
+    border: 1.5px solid rgba(0, 255, 200, 0.15);
+    border-radius: 25px;
+    display: flex; justify-content: center; align-items: center;
+    gap: 5px; padding: 0 12px;
+    backdrop-filter: blur(4px);
+    z-index: 1;
+  }
+  .arrow {
+    width: 0; height: 0;
+    border-top: 8px solid transparent; border-bottom: 8px solid transparent;
+    border-left: 13px solid #1a3a5a;
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .arrow.active {
+    border-left-color: #00ff88;
+    filter: drop-shadow(0 0 15px #00ff88);
+    transform: scaleX(1.12);
+  }
+  .hint-text {
+    color: rgba(0, 255, 200, 0.45);
+    font-size: 0.55rem; letter-spacing: 2.5px; text-transform: uppercase;
+    position: absolute; bottom: 6px; left: 0; right: 0; text-align: center;
+    z-index: 4;
+    background: rgba(0,0,0,0.3);
+    padding: 3px 0; border-radius: 16px;
+    backdrop-filter: blur(4px);
+    font-family: 'Courier New', monospace;
+  }
+  .status-bar {
+    position: absolute; top: 14px; left: 50%;
+    transform: translateX(-50%);
+    color: rgba(0, 255, 200, 0.12);
+    font-family: 'Courier New', monospace;
+    font-size: 8px; letter-spacing: 3px; text-transform: uppercase;
+    z-index: 2; pointer-events: none;
+    background: rgba(0,0,0,0.15);
+    padding: 2px 12px; border-radius: 10px;
+  }
+  @media (max-width: 420px) {
+    .scanner-card { width: 240px; height: 330px; padding: 14px 12px 12px; }
+    .fingerprint-wrapper { width: 140px; height: 170px; }
+    .corner { width: 26px; height: 26px; }
+    .arrow-panel { height: 34px; gap: 4px; padding: 0 10px; }
+    .arrow { border-left-width: 11px; border-top-width: 7px; border-bottom-width: 7px; }
+    .scan-hint-text { font-size: clamp(6px, 0.6vw, 9px); left: calc(100% + 8px); }
+  }
+
+  /* ===== ГЛОБАЛЬНАЯ ПАУЗА ИГРЫ ===== */
+  /* Кнопка находится рядом с пультом, но НЕ на самом пульте. */
+  #pauseGameBtn {
+    position: absolute;
+    bottom: 24px;
+    right: calc(min(38%, 160px) + 28px);
+    z-index: 100;
+    padding: 9px 13px;
+    border: 1px solid rgba(0, 220, 255, 0.55);
+    border-radius: 12px;
+    background: rgba(8, 16, 30, 0.94);
+    color: #7ef9ff;
+    font-weight: 800;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 0 14px rgba(0, 200, 255, 0.25);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #pauseGameBtn.is-paused {
+    color: #fff;
+    border-color: rgba(255, 210, 70, 0.75);
+    box-shadow: 0 0 16px rgba(255, 190, 40, 0.3);
+  }
+  @media (max-width: 600px) {
+    #pauseGameBtn {
+      bottom: 18px;
+      right: calc(38% + 20px);
+      padding: 8px 10px;
+      font-size: 12px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== PRELOADER ===== -->
+<div id="preloader">
+  <div class="elevator-viewport">
+    <img src="elevator.jpg" alt="Elevator" class="elevator-bg-img">
+    <div class="elevator-status-top" id="topStatus">
+      Зачекайте, йде завантаження...<br>Please wait, loading...
+    </div>
+    <div class="elevator-screen-overlay">
+      <span id="elevatorCounter">0</span>
+    </div>
+    <div class="scanner-btn-wrapper">
+      <div class="fingerprint-overlay disabled" id="elevatorScannerBtn"></div>
+      <div class="scan-hint-text" id="scanHintText">
+        <span class="ukr">НАЖМІТЬ СКАН</span>
+        <span class="eng">PRESS SCAN</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== СКАНЕР ===== -->
+<div class="scanner-overlay" id="scannerOverlay">
+  <div class="scanner-card" id="scannerCard">
+    <div class="matrix-bg" id="matrixBg"></div>
+    <div class="status-bar">● SECURE</div>
+    <div class="corner top-left"></div>
+    <div class="corner top-right"></div>
+    <div class="corner bottom-left"></div>
+    <div class="corner bottom-right"></div>
+    <div class="status-dot" id="statusDot"></div>
+    <div class="fingerprint-wrapper" id="fpWrapper">
+      <div class="scan-line"></div>
+      <img class="fingerprint-image" src="photo.jpg" alt="Your photo" id="userImage">
+      <div class="hint-text" id="hintText">READY</div>
+    </div>
+    <div class="arrow-panel" id="arrowPanel">
+      <div class="arrow"></div><div class="arrow"></div><div class="arrow"></div>
+      <div class="arrow"></div><div class="arrow"></div><div class="arrow"></div>
+      <div class="arrow"></div><div class="arrow"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== INTRO fullscreen ===== -->
+<div id="introOverlay">
+  <img id="introImage" src="" alt="">
+</div>
+
+<!-- ===== ИГРА fullscreen ===== -->
+<div id="gameRoot">
+<div class="wrap">
+
+  <div id="jsError" style="display:none; position:absolute; top:8px; left:8px; right:8px; z-index:90; background:#7f1d1d; color:#fff; font-size:12px; padding:8px 10px; border-radius:8px;"></div>
+
+  <div class="topbar">
+    <div class="score">Всего: <span id="scoreTotalTop">0.00</span> см</div>
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+      <div class="score">+ <span id="plusTotalTop">0.00</span> см</div>
+      <div class="balance">💰 <span id="balanceTop">1.00</span> USDT</div>
+      <button type="button" class="inv-btn" onclick="openInventory()">🎒 Инв.</button>
+      <button type="button" class="inv-btn" onclick="openPhone()" title="Телефон">📱 Тел.</button>
+      <button type="button" class="inv-btn" onclick="openHelp()" title="Подсказки">❓ Помощь</button>
+    </div>
+  </div>
+
+  <div class="hud-bars">
+    <div class="hud-bar-row">
+      <span class="lbl">😊 Настроение</span>
+      <div class="hud-bar-track"><div class="hud-bar-fill mood" id="moodFill" style="width:100%"></div></div>
+      <span id="moodPct">100%</span>
+    </div>
+    <div class="hud-bar-row" id="depRow">
+      <span class="lbl">😞 Депрессия</span>
+      <div class="hud-bar-track"><div class="hud-bar-fill dep" id="depFill" style="width:60%"></div></div>
+      <span id="depPct">60%</span>
+    </div>
+    <button type="button" class="smoke-btn" id="smokeBtn" onclick="doSmoke()">🚬 Курнуть</button>
+  </div>
+
+  <div class="screen" id="screenBox">
+    <!-- Фон: Sid.png (contain, не на весь экран) -->
+    <img id="bgImage" class="bg-layer" src="Sid.png" alt="" draggable="false">
+
+    <!-- Пульт Pylt.png поверх Sid, правый нижний угол -->
+    <div class="remote-wrap" id="remoteWrap">
+      <img id="mainScreen" src="Pylt.png" alt="Пульт" draggable="false">
+      <button class="hotspot remote-hotspot" id="hotspot"
+        type="button"
+        style="left:38%; top:32%; width:24%; height:10%;"
+        title="Нажми"></button>
+    </div>
+
+    <!-- Пауза игры: отдельно от пульта, чтобы не перехватывать его нажатия -->
+    <button type="button" id="pauseGameBtn" aria-label="Пауза игры" title="Поставить игру на паузу">⏸ Пауза</button>
+
+    <div class="file-error" id="fileError">
+      <b id="fileErrorName">Файл не найден</b>
+      <div style="margin-top:8px;">Положите файл в ту же папку, что и этот HTML.</div>
+    </div>
+
+    <button type="button" id="phoneBackBtn" onclick="closePhoneToGame()"
+      style="display:none; position:absolute; bottom:18px; left:50%; transform:translateX(-50%);
+             z-index:100; padding:12px 28px; border-radius:14px;
+             border:1px solid rgba(0,220,255,0.5);
+             background:rgba(10,20,40,0.95); color:#7ef9ff; font-weight:700; font-size:15px;
+             cursor:pointer; box-shadow:0 0 16px rgba(0,200,255,0.35);">
+      ← Назад к пульту
+    </button>
+    <div id="phoneHotspots" style="display:none; position:absolute; inset:0; z-index:60;">
+      <button class="hotspot" style="left:23.8%; top:19.5%; width:14%; height:9.5%;"
+        onclick="openLink('https://play.google.com/store')" title="Google Play"></button>
+      <button class="hotspot" style="left:37.0%; top:19.5%; width:14%; height:9.5%;"
+        onclick="openLink('https://www.youtube.com')" title="YouTube"></button>
+      <button class="hotspot" style="left:49.7%; top:19.5%; width:14%; height:9.5%;"
+        onclick="openLink('https://www.google.com')" title="Chrome"></button>
+      <button class="hotspot" style="left:63.0%; top:19.5%; width:14%; height:9.5%;"
+        onclick="openLink('https://mail.google.com')" title="Gmail"></button>
+
+      <button class="hotspot" style="left:23.8%; top:30.5%; width:14%; height:9.5%;"
+        onclick="openLink('https://maps.google.com')" title="Карты"></button>
+      <button class="hotspot" style="left:37.0%; top:30.5%; width:14%; height:9.5%;"
+        onclick="openLink('https://mail.google.com')" title="Почта"></button>
+      <button class="hotspot" style="left:49.7%; top:30.5%; width:14%; height:9.5%;"
+        onclick="openLink('https://photos.google.com')" title="Фото"></button>
+      <button class="hotspot" style="left:63.0%; top:30.5%; width:14%; height:9.5%;"
+        onclick="openContacts()" title="Телефон"></button>
+
+      <button class="hotspot" style="left:23.8%; top:41.2%; width:14%; height:9.5%;"
+        onclick="openLink('sms:')" title="Сообщения"></button>
+      <button class="hotspot" style="left:37.0%; top:41.2%; width:14%; height:9.5%;"
+        onclick="alert('Настройки')" title="Настройки"></button>
+      <button class="hotspot" style="left:49.7%; top:41.2%; width:14%; height:9.5%;"
+        onclick="alert('Камера')" title="Камера"></button>
+      <button class="hotspot" style="left:63.0%; top:41.2%; width:14%; height:9.5%;"
+        onclick="openLink('https://photos.google.com')" title="Галерея"></button>
+
+      <button class="hotspot" style="left:23.8%; top:51.9%; width:14%; height:9.5%;"
+        onclick="openMarket()" title="Маркет"></button>
+      <button class="hotspot" style="left:37.0%; top:51.9%; width:14%; height:9.5%;"
+        onclick="openLink('https://www.pubgmobile.com')" title="PUBG Mobile"></button>
+      <button class="hotspot" style="left:63.0%; top:51.9%; width:14%; height:9.5%;"
+        onclick="openLink('https://web.telegram.org')" title="Telegram"></button>
+
+      <button class="hotspot" style="left:23.8%; top:62.6%; width:14%; height:9.5%;"
+        onclick="openLink('https://web.whatsapp.com')" title="WhatsApp"></button>
+      <button class="hotspot" style="left:37.0%; top:62.6%; width:14%; height:9.5%;"
+        onclick="openLink('https://www.viber.com')" title="Viber"></button>
+      <button class="hotspot" style="left:49.7%; top:62.6%; width:14%; height:9.5%;"
+        onclick="openLink('https://discord.com/app')" title="Discord"></button>
+      <button class="hotspot" style="left:63.0%; top:62.6%; width:14%; height:9.5%;"
+        onclick="openLink('https://chat.openai.com')" title="ChatGPT"></button>
+
+      <button class="hotspot" style="left:27.0%; top:76.5%; width:11%; height:7.5%;"
+        onclick="openContacts()" title="Звонки"></button>
+      <button class="hotspot" style="left:44.0%; top:76.5%; width:11%; height:7.5%;"
+        onclick="openLink('sms:')" title="Сообщения"></button>
+      <button class="hotspot" style="left:61.0%; top:76.5%; width:11%; height:7.5%;"
+        onclick="alert('Все приложения')" title="Все приложения"></button>
+    </div>
+
+    <img id="revealImage" class="layer-fill" alt="">
+
+    <svg id="growSvg" class="svg-overlay" viewBox="0 0 1020 1536" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="goo" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur"/>
+          <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -10" result="goo"/>
+          <feComposite in="SourceGraphic" in2="goo" operator="atop"/>
+        </filter>
+        <linearGradient id="skinGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#c99488"/><stop offset="20%" stop-color="#e6bcae"/>
+          <stop offset="52%" stop-color="#eac0b3"/><stop offset="80%" stop-color="#cfa094"/>
+          <stop offset="100%" stop-color="#a87a6f"/>
+        </linearGradient>
+        <radialGradient id="ballGrad" cx="35%" cy="28%" r="82%">
+          <stop offset="0%" stop-color="#eac0b3"/><stop offset="50%" stop-color="#d6a396"/><stop offset="100%" stop-color="#a87a6f"/>
+        </radialGradient>
+        <radialGradient id="ballGrad2" cx="35%" cy="28%" r="82%">
+          <stop offset="0%" stop-color="#e6bcae"/><stop offset="50%" stop-color="#d2a094"/><stop offset="100%" stop-color="#a07268"/>
+        </radialGradient>
+        <radialGradient id="ballCrease" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="rgba(120,80,70,.55)"/><stop offset="100%" stop-color="rgba(120,80,70,0)"/>
+        </radialGradient>
+        <radialGradient id="headGrad" cx="36%" cy="28%" r="78%">
+          <stop offset="0%" stop-color="#eac0b3"/><stop offset="45%" stop-color="#d6a396"/><stop offset="100%" stop-color="#a87a6f"/>
+        </radialGradient>
+        <linearGradient id="shaftShadow" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="rgba(120,80,70,0)"/><stop offset="55%" stop-color="rgba(120,80,70,.07)"/>
+          <stop offset="100%" stop-color="rgba(120,80,70,.42)"/>
+        </linearGradient>
+      </defs>
+      <g id="hairLayer" transform="translate(590, 795)">
+        <g stroke="#2f1d18" stroke-linecap="round" fill="none">
+          <path d="M -40 -26 Q -41 -33 -39 -40" stroke-width="0.85" opacity=".6"/>
+          <path d="M -35 -28 Q -36 -35 -34 -42" stroke-width="0.8" opacity=".58"/>
+          <path d="M -30 -29 Q -31 -36 -29 -43" stroke-width="0.85" opacity=".6"/>
+          <path d="M -25 -30 Q -26 -37 -24 -44" stroke-width="0.8" opacity=".58"/>
+          <path d="M -21 -30 Q -22 -38 -20 -45" stroke-width="0.9" opacity=".62"/>
+          <path d="M -16 -30 Q -17 -39 -15 -46" stroke-width="0.8" opacity=".58"/>
+          <path d="M -12 -31 Q -13 -39 -11 -46" stroke-width="0.85" opacity=".6"/>
+          <path d="M -7 -31 Q -8 -39 -6 -47" stroke-width="0.8" opacity=".58"/>
+          <path d="M -2 -31 Q -3 -40 -1 -47" stroke-width="0.9" opacity=".62"/>
+          <path d="M 2 -31 Q 1 -40 3 -47" stroke-width="0.8" opacity=".58"/>
+          <path d="M 7 -31 Q 6 -39 8 -46" stroke-width="0.85" opacity=".6"/>
+          <path d="M 12 -31 Q 11 -39 13 -46" stroke-width="0.8" opacity=".58"/>
+          <path d="M 16 -30 Q 15 -39 17 -46" stroke-width="0.9" opacity=".62"/>
+          <path d="M 21 -30 Q 20 -38 22 -45" stroke-width="0.8" opacity=".58"/>
+          <path d="M 25 -30 Q 24 -37 26 -44" stroke-width="0.85" opacity=".6"/>
+          <path d="M 30 -29 Q 29 -36 31 -43" stroke-width="0.8" opacity=".58"/>
+          <path d="M 35 -28 Q 34 -35 36 -42" stroke-width="0.85" opacity=".6"/>
+          <path d="M 40 -26 Q 39 -33 41 -40" stroke-width="0.8" opacity=".58"/>
+        </g>
+      </g>
+      <g filter="url(#goo)">
+        <g transform="translate(590, 807)">
+          <ellipse cx="-24" cy="6" rx="23" ry="30" fill="url(#ballGrad)"/>
+          <ellipse cx="22" cy="1" rx="21" ry="28" fill="url(#ballGrad2)"/>
+          <ellipse cx="-1" cy="4" rx="7" ry="23" fill="url(#ballCrease)"/>
+        </g>
+        <g id="ballsGroup" transform="translate(590, 807)">
+          <path d="M -31 -12 Q -25 -3 -29 10" stroke="#9e6b62" stroke-width="1.1" fill="none" opacity=".45" stroke-linecap="round"/>
+          <path d="M -19 -23 Q -14 -11 -19 4" stroke="#9e6b62" stroke-width="0.9" fill="none" opacity=".4" stroke-linecap="round"/>
+          <path d="M 29 -17 Q 23 -5 26 9" stroke="#9e6b62" stroke-width="1" fill="none" opacity=".45" stroke-linecap="round"/>
+          <path d="M 17 -22 Q 13 -10 17 4" stroke="#9e6b62" stroke-width="0.85" fill="none" opacity=".4" stroke-linecap="round"/>
+          <ellipse cx="-29" cy="-4" rx="7" ry="10" fill="#f5ded4" opacity=".32"/>
+          <ellipse cx="16" cy="-5" rx="6" ry="9" fill="#f5ded4" opacity=".32"/>
+        </g>
+        <g id="shaftGroup"><g id="shaftContainer">
+          <path id="shaftPath" stroke="url(#skinGrad)" stroke-width="34" stroke-linecap="round" fill="none"/>
+        </g></g>
+      </g>
+      <g id="shaftGroupShadow"><g id="shaftContainerShadow">
+        <path id="shaftShadowPath" stroke="url(#shaftShadow)" stroke-width="34" stroke-linecap="round" fill="none"/>
+      </g></g>
+      <g id="shaftGroupDetails"><g id="shaftContainerDetails">
+        <path id="vein1" stroke="#9e6b62" stroke-width="1.2" stroke-linecap="round" fill="none" opacity=".55"/>
+        <path id="vein2" stroke="#9e6b62" stroke-width="1" stroke-linecap="round" fill="none" opacity=".5"/>
+        <path id="vein3" stroke="#9e6b62" stroke-width="0.8" stroke-linecap="round" fill="none" opacity=".42"/>
+        <path id="vein4" stroke="#9e6b62" stroke-width="0.75" stroke-linecap="round" fill="none" opacity=".4"/>
+        <path id="veinCross" stroke="#9e6b62" stroke-width="0.8" stroke-linecap="round" fill="none" opacity=".38"/>
+        <path id="highlightCenter" stroke="rgba(255,235,225,.4)" stroke-width="2.1" stroke-linecap="round" fill="none"/>
+        <path id="highlightSide" stroke="rgba(255,235,225,.3)" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+      </g></g>
+      <g id="shaftGroupHead"><g id="shaftContainerHead"><g id="headGroup">
+        <path d="M -14 -5 C -11 -9, 11 -9, 14 -5 C 11 0, -11 0, -14 -5 Z" fill="#a87a6f" opacity=".72"/>
+        <path d="M -15 -1 C -18 8, -11 22, 0 27 C 11 22, 18 8, 15 -1 C 8 -6, -8 -6, -15 -1 Z" fill="url(#headGrad)" stroke="#a87a6f" stroke-width="0.8"/>
+        <ellipse cx="0" cy="2" rx="13" ry="4" fill="#a87a6f" opacity=".38"/>
+        <ellipse cx="-5" cy="6" rx="6" ry="4" fill="#fae5dc" opacity=".55"/>
+        <ellipse cx="0" cy="25" rx="2.5" ry="1.6" fill="#a87a6f" opacity=".88"/>
+      </g></g></g>
+    </svg>
+
+    <div id="floatDelta" class="float-delta"></div>
+    <img id="batteryIcon" class="battery-badge" src="Energy 100.png" alt="Заряд">
+    <div id="tapToast" class="tap-toast">
+      <div>Изменение: <span id="lastDelta" class="last">—</span></div>
+      <div style="font-weight:700; margin-top:2px;">Всего: <span id="scoreTotal">0.00</span> см</div>
+      <div id="rewardLine" style="display:none; color:#34d399; font-weight:700; margin-top:2px;"></div>
+    </div>
+  </div>
+
+  <div class="hint">Нажми на подсвеченную зону вверху пульта</div>
+</div>
+</div>
+
+<!-- NEON MARKET -->
+<div class="modal-overlay" id="marketModal">
+  <div class="modal">
+    <h2>🔋 Магазин батареек</h2>
+    <p class="sub">Покупка в инвентарь (макс. 5 шт.)</p>
+    <div class="pack-list">
+      <button type="button" class="pack-btn selected" id="pack1" onclick="selectPack(1)">
+        <span class="pack-price">1 USDT</span>
+        <div class="pack-title">🔋 1× Базовая</div>
+        <div class="pack-desc">1 полный цикл 100%→0</div>
+      </button>
+      <button type="button" class="pack-btn" id="pack2" onclick="selectPack(2)">
+        <span class="pack-price">2 USDT</span>
+        <div class="pack-title">🔋 2× Двойная</div>
+        <div class="pack-desc">2 полных цикла</div>
+      </button>
+      <button type="button" class="pack-btn" id="pack4" onclick="selectPack(4)">
+        <span class="pack-price">4 USDT</span>
+        <div class="pack-title">🔋 4× Четверная</div>
+        <div class="pack-desc">4 полных цикла</div>
+      </button>
+    </div>
+    <div class="info-row"><span>Итого</span><b id="totalValue">1 USDT</b></div>
+    <div class="info-row"><span>Баланс</span><b id="balanceValue">1.00 USDT</b></div>
+    <div class="info-row"><span>В инвентаре</span><b id="invCountValue">0 / 5</b></div>
+    <button class="pay-btn" id="payBtn" onclick="pay()">Купить в инвентарь</button>
+    <button class="close-btn" onclick="closeMarket()">Закрыть</button>
+  </div>
+</div>
+
+<!-- INVENTORY -->
+<div class="inv-overlay" id="invOverlay">
+  <div class="inv-panel">
+    <h2>🎒 Инвентарь</h2>
+    <p class="sub">Выберите батарейку, чтобы применить</p>
+    <div class="inv-section-title">Батарейки (<span id="invBattCount">0</span>/5)</div>
+    <div class="inv-batt-list" id="invBattList">
+      <div class="inv-empty">Пусто — купите в маркете</div>
+    </div>
+    <div class="inv-section-title">🌿 Пакетик со шмалью</div>
+    <div class="inv-weed">
+      <div class="w-title">Шмаль</div>
+      <div class="w-bar"><div class="w-fill" id="weedFill" style="width:100%"></div></div>
+      <div class="w-pct" id="weedPct">100%</div>
+    </div>
+    <button class="close-btn" style="margin-top:14px;" onclick="closeInventory()">Закрыть</button>
+  </div>
+</div>
+
+<!-- Dur.jpg -->
+<div id="durOverlay">
+  <img id="durImage" src="Dur.jpg" alt="">
+</div>
+
+<!-- Contacts -->
+<div class="contacts-overlay" id="contactsOverlay">
+  <div class="contacts-panel">
+    <h2>📞 Контакты</h2>
+    <div class="psi-hint" id="psiHint">Подсказка: депрессия 90%+ и нет USDT — позвоните Психологу.</div>
+    <div id="contactsList"></div>
+    <button class="close-btn" style="margin-top:12px;" onclick="closeContacts()">Закрыть</button>
+  </div>
+</div>
+
+<!-- Photo zoom -->
+<div class="photo-zoom-overlay" id="photoZoomOverlay" onclick="closePhotoZoom()">
+  <img id="photoZoomImg" src="" alt="">
+</div>
+
+<!-- Bariga shop -->
+<div class="bariga-overlay" id="barigaOverlay">
+  <div class="mini-modal">
+    <h3>🌿 Барыга</h3>
+    <p class="sub">Заказать шмаль · 10% = 1 USDT</p>
+    <div class="range-row">
+      <span>Кол-во</span>
+      <input type="range" id="weedOrderRange" min="10" max="100" step="10" value="10" oninput="updateWeedOrderUI()">
+      <span class="range-val" id="weedOrderPct">10%</span>
+    </div>
+    <div class="info-row"><span>Цена</span><b id="weedOrderPrice">1 USDT</b></div>
+    <div class="info-row"><span>Баланс</span><b id="weedOrderBal">0 USDT</b></div>
+    <div class="info-row"><span>Шмаль сейчас</span><b id="weedOrderHave">0%</b></div>
+    <button class="pay-btn" onclick="buyWeedFromBariga()">Заказать</button>
+    <button class="close-btn" onclick="closeBariga()">Закрыть</button>
+  </div>
+</div>
+
+<!-- Bank credit -->
+<div class="bank-overlay" id="bankOverlay">
+  <div class="mini-modal">
+    <h3>🏦 Банк</h3>
+    <p class="sub">Кредит 1–10 USDT. За каждую потраченную батарею −1 USDT, пока долг не погашен.</p>
+    <div class="info-row"><span>Текущий долг</span><b id="bankDebt">0 USDT</b></div>
+    <div class="info-row"><span>Баланс</span><b id="bankBal">0 USDT</b></div>
+    <div class="range-row">
+      <span>Сумма</span>
+      <input type="range" id="creditRange" min="1" max="10" step="1" value="1" oninput="updateBankUI()">
+      <span class="range-val" id="creditVal">1</span>
+    </div>
+    <button class="pay-btn" onclick="takeCredit()">Взять кредит</button>
+    <button class="pay-btn" style="background:linear-gradient(135deg,#059669,#10b981);margin-top:8px;" onclick="repayCredit()">Погасить долг</button>
+    <button class="close-btn" onclick="closeBank()">Закрыть</button>
+  </div>
+</div>
+
+<!-- Psychologist video -->
+<div id="psiVideoOverlay">
+  <video id="psiVideo" playsinline></video>
+</div>
+
+<!-- Okno at 100% depression (src ставится только при 100% dep) -->
+<div id="oknoOverlay">
+  <img id="oknoImg" alt="" src="">
+</div>
+
+<!-- Help / Hints -->
+<div class="inv-overlay" id="helpOverlay">
+  <div class="inv-panel" style="max-width:400px;">
+    <h2>❓ Как играть</h2>
+    <p class="sub">Кратко о главном</p>
+    <div style="font-size:13px; line-height:1.55; color:rgba(220,235,255,0.9);">
+      <p style="margin:0 0 10px;"><b style="color:#7ef9ff;">Цель</b> — вырастить персонажа на максимум (шкала «Всего» и SVG). За каждые <b>15 см только плюсов</b> (+ см) на баланс падает <b>+1 USDT</b>.</p>
+      <p style="margin:0 0 10px;"><b style="color:#7ef9ff;">Пульт</b> — жми подсвеченную кнопку. Выпадает <b>50/50</b> рост или уменьшение. Каждый нажим сажает батарею.</p>
+      <p style="margin:0 0 10px;"><b style="color:#7ef9ff;">Батарейки</b> — когда заряд кончился, купи в маркете (1× / 2× / 4×). Покупки лежат в <b>Инвентаре</b> — оттуда «Применить».</p>
+      <p style="margin:0 0 10px;"><b style="color:#7ef9ff;">Настроение</b> падает на 10%, если выпал минус. Поднять можно кнопкой <b>«Курнуть»</b> (нужна шмаль в инвентаре).</p>
+      <p style="margin:0 0 10px;"><b style="color:#7ef9ff;">Депрессия</b> появляется, если настроение ниже 40%. При депрессии лучше курнуть. При <b>90%+</b> можно записаться к <b>Психологу</b> в контактах телефона (особенно если нет денег). При <b>100%</b> — конец: экран окна.</p>
+      <p style="margin:0 0 10px;"><b style="color:#7ef9ff;">Телефон</b> (кнопка «Тел.») — все иконки на экране <b>интерактивны</b>. В контактах:
+        <br>• <b>Барыга</b> — купить шмаль (10% = 1 USDT)
+        <br>• <b>Банк</b> — кредит 1–10 USDT (за каждую севшую батарею −1 USDT, пока долг не погашен)
+        <br>• <b>Психолог</b> — при депрессии ≥ 90%: видео и +30% к настроению
+      </p>
+      <p style="margin:0 0 10px;"><b style="color:#7ef9ff;">Инвентарь</b> — батарейки и остаток шмали в пакетике.</p>
+      <p style="margin:0; color:rgba(180,220,255,0.65); font-size:12px;">Совет: следи за настроением и запасом батареек — без них рост остановится.</p>
+    </div>
+    <button class="close-btn" style="margin-top:14px;" onclick="closeHelp()">Понятно</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var RESOURCES = [
+    { key: 'Vhod.jpeg', url: 'Vhod.jpeg' },
+    { key: 'Sid.png', url: 'Sid.png' },
+    { key: 'Vid.jpeg', url: 'Vid.jpeg' },
+    { key: 'Pylt.png', url: 'Pylt.png' },
+    { key: 'Dur.jpg', url: 'Dur.jpg' },
+    { key: 'Okno.jpg', url: 'Okno.jpg' },
+    { key: 'Bariga.jpg', url: 'Bariga.jpg' },
+    { key: 'Sosed.jpg', url: 'Sosed.jpg' },
+    { key: 'Gena.jpg', url: 'Gena.jpg' },
+    { key: 'Syn.jpg', url: 'Syn.jpg' },
+    { key: 'Bos.jpg', url: 'Bos.jpg' },
+    { key: 'Brat.jpg', url: 'Brat.jpg' },
+    { key: 'Psiholog.jpg', url: 'Psiholog.jpg' },
+    { key: 'Bank.jpg', url: 'Bank.jpg' },
+    { key: 'Psiholog.mp4', url: 'Psiholog.mp4' },
+    { key: 'A.mp4', url: 'A.mp4' },
+    { key: 'B.mp4', url: 'B.mp4' },
+    { key: 'Vahue.jpeg', url: 'Vahue.jpeg' },
+    { key: 'Ogida.jpeg', url: 'Ogida.jpeg' },
+    { key: 'Phone1.png', url: 'Phone1.png' },
+    { key: 'Phone.jpeg', url: 'Phone.jpeg' },
+    { key: 'Alfons.mp3', url: 'Alfons.mp3' },
+    { key: 'Kolpak.mp3', url: 'Kolpak.mp3' },
+    { key: 'Dver.mp3', url: 'Dver.mp3' },
+    { key: 'Po TV.mp3', url: 'Po TV.mp3' },
+    { key: 'Fuu.mp3', url: 'Fuu.mp3' },
+    { key: 'Ohuet.mp3', url: 'Ohuet.mp3' }
+  ];
+
+  window.PRELOADED = window.PRELOADED || {};
+
+  /* ===== AUDIO HELPERS ===== */
+  var audioAlfons = null;
+  var audioKolpak = null;
+  var kolpakStarted = false;
+  var kolpakFinished = false;
+  var kolpakWaiters = [];
+
+  function getAudioSrc(name) {
+    if (window.PRELOADED && window.PRELOADED[name]) return window.PRELOADED[name];
+    return name;
+  }
+
+  function notifyKolpakDone() {
+    kolpakFinished = true;
+    kolpakWaiters.forEach(function (fn) { try { fn(); } catch (e) {} });
+    kolpakWaiters = [];
+  }
+
+  // Ждём окончания Kolpak (если ещё играет). Если уже закончил — сразу.
+  function waitKolpakEnd() {
+    return new Promise(function (resolve) {
+      if (kolpakFinished) {
+        resolve();
+        return;
+      }
+      kolpakWaiters.push(resolve);
+      // safety fallback 30s
+      setTimeout(function () {
+        if (!kolpakFinished) notifyKolpakDone();
+      }, 30000);
+    });
+  }
+
+  // Играет sfx один раз; resolve когда звук закончился (или fallback ms)
+  function playSfxUntilEnd(name, volume, fallbackMs) {
+    return new Promise(function (resolve) {
+      var done = false;
+      function finish() {
+        if (done) return;
+        done = true;
+        resolve();
+      }
+      try {
+        var a = new Audio(getAudioSrc(name));
+        a.volume = volume != null ? volume : 1;
+        a.addEventListener('ended', finish);
+        a.addEventListener('error', function () {
+          setTimeout(finish, fallbackMs || 2000);
+        });
+        a.addEventListener('loadedmetadata', function () {
+          if (a.duration && isFinite(a.duration)) {
+            setTimeout(finish, Math.ceil(a.duration * 1000) + 80);
+          }
+        });
+        a.play().catch(function () {
+          setTimeout(finish, fallbackMs || 2000);
+        });
+      } catch (e) {
+        setTimeout(finish, fallbackMs || 2000);
+      }
+    });
+  }
+
+  function playSfx(name, volume) {
+    try {
+      var a = new Audio(getAudioSrc(name));
+      a.volume = volume != null ? volume : 1;
+      a.play().catch(function () {});
+      return a;
+    } catch (e) {}
+    return null;
+  }
+
+  function startBgm() {
+    try {
+      // Alfons — тихий фон, loop (можно вызывать повторно — не дублируется)
+      if (!audioAlfons) {
+        audioAlfons = new Audio(getAudioSrc('Alfons.mp3'));
+        audioAlfons.loop = true;
+        audioAlfons.volume = 0.12;
+      }
+      if (audioAlfons.paused) {
+        audioAlfons.play().catch(function () {});
+      }
+
+      // Kolpak — СТРОГО один раз за всю сессию
+      if (kolpakStarted) return;
+      kolpakStarted = true;
+
+      setTimeout(function () {
+        try {
+          audioKolpak = new Audio(getAudioSrc('Kolpak.mp3'));
+          audioKolpak.loop = false;
+          audioKolpak.volume = 0.9;
+          audioKolpak.addEventListener('ended', notifyKolpakDone);
+          audioKolpak.addEventListener('error', notifyKolpakDone);
+          audioKolpak.addEventListener('loadedmetadata', function () {
+            if (audioKolpak.duration && isFinite(audioKolpak.duration)) {
+              setTimeout(notifyKolpakDone, Math.ceil(audioKolpak.duration * 1000) + 100);
+            }
+          });
+          audioKolpak.play().catch(function () { notifyKolpakDone(); });
+        } catch (e) {
+          notifyKolpakDone();
+        }
+      }, 1000);
+    } catch (e) {
+      notifyKolpakDone();
+    }
+  }
+
+  /* ===== PRELOADER UI ===== */
+  var preloader = document.getElementById('preloader');
+  var elevatorImg = document.querySelector('.elevator-bg-img');
+  var elevatorScreen = document.querySelector('.elevator-screen-overlay');
+  var elevatorCounter = document.getElementById('elevatorCounter');
+  var elevatorScannerBtn = document.getElementById('elevatorScannerBtn');
+  var scannerBtnWrapper = document.querySelector('.scanner-btn-wrapper');
+  var topStatus = document.getElementById('topStatus');
+  var scanHintText = document.getElementById('scanHintText');
+
+  var scannerOverlay = document.getElementById('scannerOverlay');
+  var fpWrapper = document.getElementById('fpWrapper');
+  var statusDot = document.getElementById('statusDot');
+  var arrows = document.querySelectorAll('.arrow');
+  var hintText = document.getElementById('hintText');
+  var userImage = document.getElementById('userImage');
+  var matrixBg = document.getElementById('matrixBg');
+
+  var isLoaded = false;
+  var scanTimer = null;
+  var currentStep = 0;
+  var totalSteps = arrows.length;
+  var isScanning = false;
+  var isComplete = false;
+
+  var chars = '0123456789';
+  for (var col = 0; col < 14; col++) {
+    var column = document.createElement('div');
+    column.className = 'matrix-column';
+    column.style.left = (col * (100 / 14)) + '%';
+    column.style.animationDuration = (Math.random() * 4 + 3) + 's';
+    column.style.animationDelay = (Math.random() * 5) + 's';
+    for (var i = 0; i < 15; i++) {
+      var span = document.createElement('span');
+      span.className = 'matrix-char';
+      if (i < 3 && Math.random() > 0.7) span.classList.add('lead');
+      span.textContent = chars[Math.floor(Math.random() * chars.length)];
+      span.style.fontSize = (Math.random() * 5 + 10) + 'px';
+      span.style.opacity = Math.random() * 0.4 + 0.25;
+      column.appendChild(span);
+    }
+    matrixBg.appendChild(column);
+  }
+
+  userImage.addEventListener('error', function () {
+    this.style.display = 'none';
+    var placeholder = document.createElement('div');
+    placeholder.style.cssText = 'width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:rgba(0,255,200,0.4);font-size:12px;background:rgba(0,0,0,0.2);border-radius:34px;gap:6px;padding:16px;text-align:center;';
+    placeholder.innerHTML = '<span style="font-size:28px;">📸</span><span>photo.jpg</span>';
+    this.parentNode.insertBefore(placeholder, this);
+  });
+
+  function resetScanner(keepSuccess) {
+    if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }
+    fpWrapper.classList.remove('scanning');
+    arrows.forEach(function (a) { a.classList.remove('active'); });
+    currentStep = 0;
+    isScanning = false;
+    if (!keepSuccess) statusDot.classList.remove('success');
+    hintText.textContent = 'READY';
+    hintText.style.color = 'rgba(0, 255, 200, 0.45)';
+  }
+
+  function completeScan() {
+    if (isComplete) return;
+    isComplete = true;
+    isScanning = false;
+    if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }
+    fpWrapper.classList.remove('scanning');
+    statusDot.classList.add('success');
+    hintText.textContent = '✓ ACCESS';
+    hintText.style.color = 'rgba(0, 255, 136, 0.8)';
+
+    // Ждём конца Kolpak → ещё 2с показываем elevator.jpg → потом Vhod
+    setTimeout(function () {
+      scannerOverlay.classList.remove('active');
+      waitKolpakEnd().then(function () {
+        // 2 секунды продолжаем elevator.jpg (без тёмного экрана)
+        setTimeout(function () {
+          preloader.classList.add('hidden');
+          window.dispatchEvent(new CustomEvent('site:enter'));
+        }, 2000);
+      });
+    }, 500);
+  }
+
+  function stepProgress() {
+    if (currentStep < totalSteps) {
+      arrows[currentStep].classList.add('active');
+      currentStep++;
+      hintText.textContent = currentStep < totalSteps ? Math.round((currentStep / totalSteps) * 100) : 'PROCESS';
+    } else {
+      completeScan();
+    }
+  }
+
+  function startScan(e) {
+    if (e) e.preventDefault();
+    if (isScanning || isComplete) return;
+    if (statusDot.classList.contains('success')) statusDot.classList.remove('success');
+    resetScanner(false);
+    isScanning = true;
+    isComplete = false;
+    fpWrapper.classList.add('scanning');
+    hintText.textContent = 'SCAN';
+    hintText.style.color = 'rgba(0, 255, 200, 0.7)';
+    arrows.forEach(function (a) { a.classList.remove('active'); });
+    currentStep = 0;
+    scanTimer = setInterval(stepProgress, 250);
+
+    // Music starts on scan press
+    startBgm();
+  }
+
+  function cancelScan(e) {
+    if (!isScanning || isComplete) return;
+    if (e) e.preventDefault();
+    if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }
+    fpWrapper.classList.remove('scanning');
+    arrows.forEach(function (a) { a.classList.remove('active'); });
+    currentStep = 0;
+    isScanning = false;
+    hintText.textContent = 'CANCEL';
+    hintText.style.color = 'rgba(255, 80, 80, 0.6)';
+    setTimeout(function () {
+      if (!isScanning && !isComplete) {
+        hintText.textContent = 'READY';
+        hintText.style.color = 'rgba(0, 255, 200, 0.45)';
+      }
+    }, 1000);
+  }
+
+  fpWrapper.addEventListener('mousedown', startScan);
+  window.addEventListener('mouseup', cancelScan);
+  fpWrapper.addEventListener('touchstart', startScan, { passive: false });
+  window.addEventListener('touchend', cancelScan, { passive: false });
+  fpWrapper.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  function openScanner(e) {
+    if (e) e.preventDefault();
+    if (!isLoaded) return;
+    scannerOverlay.classList.add('active');
+    scanHintText.classList.remove('show');
+    resetScanner(false);
+  }
+  elevatorScannerBtn.addEventListener('click', openScanner);
+  elevatorScannerBtn.addEventListener('touchstart', openScanner, { passive: false });
+
+  scannerOverlay.addEventListener('click', function (e) {
+    if (e.target === scannerOverlay && !isScanning && !isComplete) {
+      scannerOverlay.classList.remove('active');
+      if (isLoaded) scanHintText.classList.add('show');
+    }
+  });
+
+  resetScanner(false);
+
+  function startMainLoading() {
+    elevatorImg.classList.add('loaded');
+    elevatorScreen.classList.add('loaded');
+    scannerBtnWrapper.classList.add('loaded');
+    topStatus.classList.add('show');
+    Promise.all(RESOURCES.map(function (r) { return loadResource(r); })).then(function () {
+      elevatorCounter.textContent = 100;
+      var failed = RESOURCES.filter(function (r) { return progress[r.key] && progress[r.key].failed; });
+      if (failed.length) {
+        topStatus.innerHTML = 'Готово (частично). Не найдено: ' + failed.map(function (r) { return r.key; }).join(', ');
+      } else {
+        topStatus.innerHTML = 'Завантаження завершено!<br>Loading complete!';
+      }
+      isLoaded = true;
+      elevatorScannerBtn.classList.remove('disabled');
+      scanHintText.classList.add('show');
+    });
+  }
+
+  var progress = {};
+  RESOURCES.forEach(function (r) {
+    progress[r.key] = { loaded: 0, total: 0, known: false, ok: false, failed: false };
+  });
+
+  function updateCounter() {
+    var loaded = 0, total = 0, haveKnownTotal = false;
+    RESOURCES.forEach(function (r) {
+      var p = progress[r.key];
+      if (p.known) {
+        loaded += p.loaded;
+        total += p.total;
+        haveKnownTotal = true;
+      }
+    });
+    var pct;
+    if (haveKnownTotal && total > 0) {
+      pct = Math.min(100, Math.round((loaded / total) * 100));
+    } else {
+      var okCount = RESOURCES.filter(function (r) { return progress[r.key].ok; }).length;
+      pct = Math.round((okCount / RESOURCES.length) * 100);
+    }
+    elevatorCounter.textContent = pct;
+  }
+
+  function fetchOnce(res) {
+    return fetch(res.url).then(function (response) {
+      if (!response.ok || !response.body) { throw new Error('HTTP ' + response.status); }
+      var contentLength = response.headers.get('Content-Length');
+      if (contentLength) {
+        progress[res.key].total = parseInt(contentLength, 10);
+        progress[res.key].known = true;
+      }
+      var reader = response.body.getReader();
+      var chunks = [];
+      function pump() {
+        return reader.read().then(function (result) {
+          if (result.done) { return; }
+          chunks.push(result.value);
+          progress[res.key].loaded += result.value.length;
+          updateCounter();
+          return pump();
+        });
+      }
+      return pump().then(function () { return new Blob(chunks); });
+    }).then(function (blob) {
+      window.PRELOADED[res.key] = URL.createObjectURL(blob);
+      progress[res.key].ok = true;
+      progress[res.key].failed = false;
+      updateCounter();
+    });
+  }
+
+  // Мягкая загрузка: 2 попытки, потом пропускаем файл (не блокируем игру)
+  function loadResource(res, attempt) {
+    attempt = attempt || 0;
+    return fetchOnce(res).catch(function (err) {
+      console.warn('Preloader: ' + res.url + ' fail attempt ' + (attempt + 1), err);
+      progress[res.key].loaded = 0;
+      progress[res.key].total = 0;
+      progress[res.key].known = false;
+      progress[res.key].failed = true;
+      updateCounter();
+      if (attempt < 1) {
+        topStatus.innerHTML = 'Помилка ' + res.url + ', повтор...<br>Retrying ' + res.url + '...';
+        topStatus.classList.add('show');
+        return new Promise(function (resolve) { setTimeout(resolve, 1500); })
+          .then(function () { return loadResource(res, attempt + 1); });
+      }
+      // После 2 попыток — пропускаем, игра всё равно стартует
+      console.warn('Preloader: пропускаем отсутствующий файл ' + res.url);
+      progress[res.key].ok = false;
+      progress[res.key].failed = true;
+      updateCounter();
+      return null;
+    });
+  }
+
+  if (elevatorImg.complete && elevatorImg.naturalWidth > 0) {
+    startMainLoading();
+  } else {
+    elevatorImg.addEventListener('load', startMainLoading, { once: true });
+    elevatorImg.addEventListener('error', function () {
+      console.warn('elevator.jpg missing, continue');
+      startMainLoading();
+    }, { once: true });
+  }
+
+  /* ===== INTRO =====
+     Kolpak закончился → пауза 2с (уже в completeScan)
+     → Vhod + Dver → после Dver пауза 2с
+     → Vid 4с → Sid + Po TV → Pult
+  */
+  window.addEventListener('site:enter', function () {
+    var intro = document.getElementById('introOverlay');
+    var introImg = document.getElementById('introImage');
+    var gameRoot = document.getElementById('gameRoot');
+
+    function delay(ms) {
+      return new Promise(function (resolve) { setTimeout(resolve, ms); });
+    }
+
+    // Картинка на экране пока играет sfx (или fixedMs если sfx нет)
+    function showIntro(src, sfxName, fallbackMs) {
+      return new Promise(function (resolve) {
+        introImg.src = (window.PRELOADED && window.PRELOADED[src]) ? window.PRELOADED[src] : src;
+        intro.classList.add('show');
+        if (sfxName) {
+          playSfxUntilEnd(sfxName, 1, fallbackMs || 2500).then(resolve);
+        } else {
+          setTimeout(resolve, fallbackMs || 2000);
+        }
+      });
+    }
+
+    // Vhod + Dver → 2с пауза → Vid 2с → Sid + Po TV → игра (Sid фон + Pylt угол)
+    showIntro('Vhod.jpeg', 'Dver.mp3', 2500)
+      .then(function () { return delay(2000); })
+      .then(function () { return showIntro('Vid.jpeg', null, 2000); })
+      .then(function () { return showIntro('Sid.png', 'Po TV.mp3', 2500); })
+      .then(function () {
+        intro.classList.remove('show');
+        gameRoot.classList.add('ready');
+        var bg = document.getElementById('bgImage');
+        var ms = document.getElementById('mainScreen');
+        if (window.PRELOADED && window.PRELOADED['Sid.png']) {
+          bg.src = window.PRELOADED['Sid.png'];
+        }
+        if (window.PRELOADED && window.PRELOADED['Pylt.png']) {
+          ms.src = window.PRELOADED['Pylt.png'];
+        }
+      });
+  });
+})();
+</script>
+
+<script>
+  /* ===== ГЛОБАЛЬНАЯ ПАУЗА: замораживает таймеры, интервалы и media ===== */
+  (function () {
+    var nativeSetTimeout = window.setTimeout.bind(window);
+    var nativeClearTimeout = window.clearTimeout.bind(window);
+    var nativeSetInterval = window.setInterval.bind(window);
+    var nativeClearInterval = window.clearInterval.bind(window);
+    var timers = new Map();
+    var intervals = new Map();
+    var nextTimerId = 1;
+    var nextIntervalId = 1;
+    var paused = false;
+    var pausedMedia = new Set();
+
+    function scheduleTimer(t) {
+      t.nativeId = nativeSetTimeout(function () {
+        if (paused) return;
+        timers.delete(t.id);
+        try { t.fn(); } catch (e) { nativeSetTimeout(function () { throw e; }, 0); }
+      }, Math.max(0, t.remaining));
+    }
+
+    window.setTimeout = function (fn, delay) {
+      var id = nextTimerId++;
+      var t = { id: id, fn: fn, remaining: Number(delay) || 0, started: Date.now(), nativeId: null };
+      timers.set(id, t);
+      if (!paused) scheduleTimer(t);
+      return id;
+    };
+
+    window.clearTimeout = function (id) {
+      var t = timers.get(id);
+      if (t) { nativeClearTimeout(t.nativeId); timers.delete(id); }
+      else nativeClearTimeout(id);
+    };
+
+    function scheduleInterval(it) {
+      it.nativeId = nativeSetInterval(function () {
+        if (paused) return;
+        try { it.fn(); } catch (e) { nativeSetTimeout(function () { throw e; }, 0); }
+      }, it.delay);
+    }
+
+    window.setInterval = function (fn, delay) {
+      var id = nextIntervalId++;
+      var it = { id: id, fn: fn, delay: Math.max(1, Number(delay) || 0), nativeId: null };
+      intervals.set(id, it);
+      if (!paused) scheduleInterval(it);
+      return id;
+    };
+
+    window.clearInterval = function (id) {
+      var it = intervals.get(id);
+      if (it) { nativeClearInterval(it.nativeId); intervals.delete(id); }
+      else nativeClearInterval(id);
+    };
+
+    var nativePlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function () {
+      this.__pauseTracked = true;
+      this.__pauseWasPlaying = true;
+      if (paused) {
+        this.__pauseWanted = true;
+        return Promise.resolve();
+      }
+      return nativePlay.apply(this, arguments);
+    };
+
+    function setPaused(value) {
+      if (value === paused) return;
+      paused = value;
+      if (paused) {
+        var now = Date.now();
+        timers.forEach(function (t) {
+          if (t.nativeId != null) nativeClearTimeout(t.nativeId);
+          t.remaining = Math.max(0, t.remaining - (now - t.started));
+          t.nativeId = null;
+        });
+        pausedMedia.clear();
+        document.querySelectorAll('video, audio').forEach(function (media) {
+          if (!media.paused && !media.ended) {
+            pausedMedia.add(media);
+            try { media.pause(); } catch (e) {}
+          }
+        });
+        document.body.classList.add('game-paused');
+      } else {
+        timers.forEach(function (t) { t.started = Date.now(); scheduleTimer(t); });
+        intervals.forEach(function (it) {
+          if (it.nativeId != null) nativeClearInterval(it.nativeId);
+          scheduleInterval(it);
+        });
+        pausedMedia.forEach(function (media) {
+          try {
+            if (!media.ended) nativePlay.call(media).catch(function () {});
+          } catch (e) {}
+        });
+        pausedMedia.clear();
+        document.body.classList.remove('game-paused');
+      }
+      var btn = document.getElementById('pauseGameBtn');
+      if (btn) {
+        btn.classList.toggle('is-paused', paused);
+        btn.textContent = paused ? '▶ Продолжить' : '⏸ Пауза';
+        btn.title = paused ? 'Продолжить игру с того же места' : 'Поставить игру на паузу';
+      }
+    }
+
+    window.toggleGamePause = function () { setPaused(!paused); };
+    window.isGamePaused = function () { return paused; };
+
+    document.addEventListener('DOMContentLoaded', function () {
+      var btn = document.getElementById('pauseGameBtn');
+      if (btn) btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleGamePause();
+      });
+    });
+  })();
+
+  window.onerror = function (msg, url, line) {
+    var el = document.getElementById('jsError');
+    if (el) {
+      el.style.display = 'block';
+      el.textContent = 'JS: ' + msg + ' (стр. ' + line + ')';
+    }
+    return false;
+  };
+
+  var ENERGY_STEP = 5;
+  var TIER_SIZE_CM = 15;
+  var TIER_REWARD_USDT = 1;
+  var REVEAL_VAHUE_MS = 3500; // Vahue.jpeg
+  var REVEAL_OGIDA_MS = 2000; // Ogida.jpeg
+
+  // Пакеты батареек: цена → сколько ПОЛНЫХ циклов 100→0
+  // После покупки один цикл сразу активен, остальные = auto-refill
+  var BATTERY_PACKS = {
+    1: { price: 1, cycles: 1 },
+    2: { price: 2, cycles: 2 },
+    4: { price: 4, cycles: 4 }
+  };
+
+  var MIN_CM = 0.5, MAX_CM = 40;
+  var BASE_LEN = 60, MAX_LEN = 195, MAX_BOW = 52, MAX_ROTATION = 180;
+  var BASE_WIDTH = 28, MAX_WIDTH = 40;
+  var BASE_X = 590, BASE_Y = 793;
+
+  var score = 0;           // текущая длина (может уходить в минус)
+  var plusTotal = 0;       // только сумма +см (минусы НЕ вычитаются)
+  var creditedTier = 0;    // сколько 15-см рубежей уже оплачено по plusTotal
+  var balance = 1;         // default 1 USDT
+  var energy = 100;
+  // reserveCharges = сколько раз ещё можно автоматически вернуть 100% после 0
+  // Старт: 0 — одна «бесплатная» батарея до первой покупки
+  var reserveCharges = 0;
+  var busy = false;
+  var selectedPack = 1; // 1 | 2 | 4
+  var tapCount = 0, toastTimer = null;
+
+  // Инвентарь батареек: { type: 1|2|4, cycles: N }  max 5
+  var inventory = [];
+  var MAX_INV = 5;
+
+  // Шмаль / настроение / депрессия
+  var weedPct = 100;
+  var moodPct = 100;
+  var depPct = 0;
+  var depVisible = false;
+  var smoking = false;
+  var bankDebt = 0; // долг банку
+
+  var CONTACTS = [
+    { id: 'bariga', name: 'Барыга', img: 'Bariga.jpg', action: 'bariga' },
+    { id: 'sosed', name: 'Сосед', img: 'Sosed.jpg', action: 'chat' },
+    { id: 'gena', name: 'Любимая', img: 'Gena.jpg', action: 'chat' },
+    { id: 'syn', name: 'Сын', img: 'Syn.jpg', action: 'chat' },
+    { id: 'bos', name: 'Бос', img: 'Bos.jpg', action: 'chat' },
+    { id: 'brat', name: 'Брат', img: 'Brat.jpg', action: 'chat' },
+    { id: 'psi', name: 'Психолог', img: 'Psiholog.jpg', action: 'psi' },
+    { id: 'bank', name: 'Банк', img: 'Bank.jpg', action: 'bank' }
+  ];
+
+  var hotspot = document.getElementById('hotspot');
+  var mainScreen = document.getElementById('mainScreen');
+  var screenBox = document.getElementById('screenBox');
+  var revealImage = document.getElementById('revealImage');
+  var batteryIcon = document.getElementById('batteryIcon');
+  var lastDeltaEl = document.getElementById('lastDelta');
+  var scoreTotalEl = document.getElementById('scoreTotal');
+  var scoreTotalTopEl = document.getElementById('scoreTotalTop');
+  var plusTotalTopEl = document.getElementById('plusTotalTop');
+  var balanceTopEl = document.getElementById('balanceTop');
+  var tapCountEl = document.getElementById('tapCount');
+  var tapToast = document.getElementById('tapToast');
+  var growSvg = document.getElementById('growSvg');
+  var floatDelta = document.getElementById('floatDelta');
+
+  var shaftGroup = document.getElementById('shaftGroup');
+  var shaftGroupShadow = document.getElementById('shaftGroupShadow');
+  var shaftGroupDetails = document.getElementById('shaftGroupDetails');
+  var shaftGroupHead = document.getElementById('shaftGroupHead');
+  var shaftPath = document.getElementById('shaftPath');
+  var shaftShadowPath = document.getElementById('shaftShadowPath');
+  var headGroup = document.getElementById('headGroup');
+  var vein1 = document.getElementById('vein1');
+  var vein2 = document.getElementById('vein2');
+  var vein3 = document.getElementById('vein3');
+  var vein4 = document.getElementById('vein4');
+  var veinCross = document.getElementById('veinCross');
+  var highlightCenter = document.getElementById('highlightCenter');
+  var highlightSide = document.getElementById('highlightSide');
+
+  balanceTopEl.textContent = balance.toFixed(2);
+  if (plusTotalTopEl) plusTotalTopEl.textContent = plusTotal.toFixed(2);
+
+  hotspot.addEventListener('click', onPress, false);
+
+  function openLink(url) { window.open(url, '_blank'); }
+
+  function playSfxUntilEnd(name, volume, fallbackMs) {
+    return new Promise(function (resolve) {
+      var done = false;
+      function finish() {
+        if (done) return;
+        done = true;
+        resolve();
+      }
+      try {
+        var src = (window.PRELOADED && window.PRELOADED[name]) ? window.PRELOADED[name] : name;
+        var a = new Audio(src);
+        a.volume = volume != null ? volume : 1;
+        a.addEventListener('ended', finish);
+        a.addEventListener('error', function () {
+          setTimeout(finish, fallbackMs || 1500);
+        });
+        a.addEventListener('loadedmetadata', function () {
+          if (a.duration && isFinite(a.duration)) {
+            setTimeout(finish, Math.ceil(a.duration * 1000) + 80);
+          }
+        });
+        a.play().catch(function () {
+          setTimeout(finish, fallbackMs || 1500);
+        });
+      } catch (e) {
+        setTimeout(finish, fallbackMs || 1500);
+      }
+    });
+  }
+
+  function pointOnCurve(t, bow, len, offset) {
+    offset = offset || 0;
+    var mt = 1 - t;
+    var x = 3 * mt * mt * t * bow + 3 * mt * t * t * bow;
+    var y = 3 * mt * mt * t * (len * 0.35) + 3 * mt * t * t * (len * 0.65) + t * t * t * len;
+    if (offset === 0) return { x: x, y: y };
+    var dx = 3 * mt * mt * bow + 3 * t * t * (-bow);
+    var dy = 3 * mt * mt * (len * 0.35) + 6 * mt * t * (len * 0.3) + 3 * t * t * (len * 0.35);
+    var dlen = Math.hypot(dx, dy) || 1;
+    return { x: x + (-dy / dlen) * offset, y: y + (dx / dlen) * offset };
+  }
+
+  function veinPath(points, bow, len) {
+    if (!points.length) return '';
+    var pts = points.map(function (p) { return pointOnCurve(p.t, bow, len, p.offset); });
+    var d = 'M ' + pts[0].x.toFixed(2) + ' ' + pts[0].y.toFixed(2);
+    for (var i = 1; i < pts.length; i++) d += ' L ' + pts[i].x.toFixed(2) + ' ' + pts[i].y.toFixed(2);
+    return d;
+  }
+
+  function renderSvgLength(cm) {
+    var clamped = Math.max(MIN_CM, Math.min(MAX_CM, cm));
+    var progress = clamped / MAX_CM;
+    var len = BASE_LEN + progress * (MAX_LEN - BASE_LEN);
+    var bow = progress * MAX_BOW;
+    var width = BASE_WIDTH + progress * (MAX_WIDTH - BASE_WIDTH);
+    var d = 'M 0 0 C ' + bow + ' ' + (len * 0.35) + ', ' + bow + ' ' + (len * 0.65) + ', 0 ' + len;
+    shaftPath.setAttribute('d', d);
+    shaftShadowPath.setAttribute('d', d);
+    var halfW = width * 0.5;
+    vein1.setAttribute('d', veinPath([{ t: 0.10, offset: -halfW * 0.35 }, { t: 0.35, offset: -halfW * 0.55 }, { t: 0.60, offset: -halfW * 0.50 }, { t: 0.85, offset: -halfW * 0.30 }], bow, len));
+    vein2.setAttribute('d', veinPath([{ t: 0.15, offset: halfW * 0.40 }, { t: 0.45, offset: halfW * 0.55 }, { t: 0.70, offset: halfW * 0.45 }, { t: 0.90, offset: halfW * 0.25 }], bow, len));
+    vein3.setAttribute('d', veinPath([{ t: 0.30, offset: -halfW * 0.15 }, { t: 0.55, offset: -halfW * 0.55 }, { t: 0.75, offset: -halfW * 0.45 }], bow, len));
+    vein4.setAttribute('d', veinPath([{ t: 0.40, offset: halfW * 0.20 }, { t: 0.65, offset: halfW * 0.50 }, { t: 0.85, offset: halfW * 0.35 }], bow, len));
+    veinCross.setAttribute('d', veinPath([{ t: 0.50, offset: -halfW * 0.45 }, { t: 0.57, offset: halfW * 0.50 }], bow, len));
+    highlightCenter.setAttribute('d', veinPath([{ t: 0.08, offset: halfW * 0.10 }, { t: 0.40, offset: halfW * 0.15 }, { t: 0.65, offset: halfW * 0.10 }, { t: 0.95, offset: halfW * 0.05 }], bow, len));
+    highlightSide.setAttribute('d', veinPath([{ t: 0.15, offset: -halfW * 0.60 }, { t: 0.45, offset: -halfW * 0.70 }, { t: 0.70, offset: -halfW * 0.60 }, { t: 0.92, offset: -halfW * 0.40 }], bow, len));
+    headGroup.setAttribute('transform', 'translate(0, ' + len + ') rotate(' + (progress * 55) + ')');
+    var angle = progress * MAX_ROTATION;
+    var transform = 'translate(' + BASE_X + ', ' + BASE_Y + ') rotate(' + angle + ')';
+    shaftGroup.setAttribute('transform', transform);
+    shaftGroupShadow.setAttribute('transform', transform);
+    shaftGroupDetails.setAttribute('transform', transform);
+    shaftGroupHead.setAttribute('transform', transform);
+    shaftPath.setAttribute('stroke-width', width);
+    shaftShadowPath.setAttribute('stroke-width', width);
+  }
+
+  function showFloatDelta(delta) {
+    var sign = delta > 0 ? '+' : '';
+    floatDelta.textContent = sign + Number(delta).toFixed(2) + ' см';
+    floatDelta.className = 'float-delta ' + (delta >= 0 ? 'plus' : 'minus');
+    void floatDelta.offsetWidth;
+    floatDelta.classList.add('show');
+    setTimeout(function () { floatDelta.classList.remove('show'); }, 1150);
+  }
+
+  function showTapToast() {
+    tapToast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { tapToast.classList.remove('show'); }, 1000);
+  }
+
+  function onPress() {
+    if (window.isGamePaused && window.isGamePaused()) return;
+    tapCount++;
+    if (tapCountEl) tapCountEl.textContent = tapCount;
+    if (busy) return;
+    if (energy <= 0) { openMarket(); return; }
+    busy = true;
+    hotspot.disabled = true;
+
+    // 50% рост (+), 50% уменьшение (−)
+    var isPlus = Math.random() < 0.5;
+    var outcome = isPlus ? 'A' : 'B';
+    var magnitude = +(0.5 + Math.random() * 4.5).toFixed(2);
+    var delta = isPlus ? magnitude : -magnitude;
+    if (!isPlus) onMoodMinus(); // минус → настроение −10%
+    playResult(outcome, delta);
+  }
+
+  function playResult(outcome, delta) {
+    var videoSrc = outcome === 'A' ? 'A.mp4' : 'B.mp4';
+    var imageSrc = outcome === 'A' ? 'Vahue.jpeg' : 'Ogida.jpeg';
+    // Ohuet с A.mp4, Fuu с B.mp4 — стартуют вместе с видео
+    var sfxName = outcome === 'A' ? 'Ohuet.mp3' : 'Fuu.mp3';
+
+    if (window.PRELOADED && window.PRELOADED[videoSrc]) videoSrc = window.PRELOADED[videoSrc];
+    if (window.PRELOADED && window.PRELOADED[imageSrc]) imageSrc = window.PRELOADED[imageSrc];
+
+    var videoEl = document.createElement('video');
+    videoEl.className = 'layer-fill';
+    videoEl.style.display = 'block';
+    videoEl.muted = true;
+    videoEl.setAttribute('muted', '');
+    videoEl.playsInline = true;
+    videoEl.setAttribute('playsinline', '');
+    videoEl.src = videoSrc;
+
+    var cleanupVideo = function () {
+      videoEl.onended = null;
+      videoEl.onerror = null;
+      try { videoEl.pause(); } catch (e) {}
+      if (videoEl.parentNode) videoEl.parentNode.removeChild(videoEl);
+    };
+
+    var revealMs = outcome === 'A' ? REVEAL_VAHUE_MS : REVEAL_OGIDA_MS;
+    var reveal = function () {
+      cleanupVideo();
+      revealImage.src = imageSrc;
+      revealImage.style.display = 'block';
+      applyScore(delta);
+      renderSvgLength(score);
+      // Vahue оставляем без изменений.
+      // Для Ogida SVG растягивается ровно по геометрии изображения,
+      // чтобы координаты не зависели от соотношения сторон viewport
+      // на localhost и GitHub Pages.
+      // Только для Ogida сдвигаем SVG на 5px влево.
+      // Vahue остаётся без изменения.
+      growSvg.style.transform = outcome === 'B' ? 'translate(-5px, -4px)' : 'none';
+      growSvg.setAttribute('preserveAspectRatio', outcome === 'B' ? 'none' : 'xMidYMid meet');
+      growSvg.classList.add('show');
+      showFloatDelta(delta);
+      showTapToast();
+      setTimeout(function () {
+        revealImage.style.display = 'none';
+        growSvg.classList.remove('show');
+        growSvg.style.transform = 'none';
+        growSvg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        floatDelta.classList.remove('show');
+        finishPress();
+      }, revealMs);
+    };
+
+    // Звук запускается вместе с видео
+    try {
+      var sfxSrc = (window.PRELOADED && window.PRELOADED[sfxName]) ? window.PRELOADED[sfxName] : sfxName;
+      var sfx = new Audio(sfxSrc);
+      sfx.volume = 1;
+      sfx.play().catch(function () {});
+    } catch (e) {}
+
+    videoEl.onended = reveal;
+    videoEl.onerror = reveal;
+    screenBox.appendChild(videoEl);
+    var playPromise = videoEl.play();
+    if (playPromise && playPromise.catch) playPromise.catch(reveal);
+  }
+
+  function applyScore(delta) {
+    score = +(score + delta).toFixed(2);
+
+    // Считаем ТОЛЬКО плюсы (минусы не уменьшают plusTotal)
+    // +2 → 2; −3 → всё ещё 2; +2.5 → 4.5 …
+    var gainedUsdt = 0;
+    if (delta > 0) {
+      plusTotal = +(plusTotal + delta).toFixed(2);
+      // Каждые 15 см накопленных плюсов → +1 USDT (15, 30, 45…)
+      var newTier = Math.floor(plusTotal / TIER_SIZE_CM);
+      if (newTier > creditedTier) {
+        gainedUsdt = (newTier - creditedTier) * TIER_REWARD_USDT;
+        balance = +(balance + gainedUsdt).toFixed(2);
+        creditedTier = newTier;
+      }
+    }
+
+    // Явно показываем +X.XX или -X.XX
+    var deltaText = (delta > 0 ? '+' : '') + delta.toFixed(2) + ' см';
+    lastDeltaEl.textContent = deltaText;
+    lastDeltaEl.className = 'last ' + (delta > 0 ? 'plus' : 'minus');
+    scoreTotalEl.textContent = score.toFixed(2);
+    scoreTotalTopEl.textContent = score.toFixed(2);
+    if (plusTotalTopEl) plusTotalTopEl.textContent = plusTotal.toFixed(2);
+    balanceTopEl.textContent = balance.toFixed(2);
+
+    var rewardLine = document.getElementById('rewardLine');
+    if (rewardLine) {
+      if (gainedUsdt > 0) {
+        rewardLine.style.display = 'block';
+        rewardLine.textContent = '+' + gainedUsdt + ' USDT!';
+      } else {
+        rewardLine.style.display = 'none';
+        rewardLine.textContent = '';
+      }
+    }
+  }
+
+  function onBatteryCycleEnd() {
+    // Каждая полностью потраченная батарея: если есть долг банку — −1 USDT
+    if (bankDebt > 0) {
+      balance = Math.max(0, +(balance - 1).toFixed(2));
+      balanceTopEl.textContent = balance.toFixed(2);
+    }
+  }
+
+  function finishPress() {
+    energy = Math.max(0, energy - ENERGY_STEP);
+    updateBatteryIcon();
+    if (energy === 0) {
+      onBatteryCycleEnd();
+      if (reserveCharges > 0) {
+        reserveCharges--;
+        energy = 100;
+        updateBatteryIcon();
+        busy = false;
+        hotspot.disabled = false;
+      } else {
+        showOutOfBattery();
+      }
+    } else {
+      busy = false;
+      hotspot.disabled = false;
+    }
+  }
+
+  function updateBatteryIcon() {
+    batteryIcon.src = 'Energy ' + energy + '.png';
+  }
+
+  var phoneFromButton = false;
+
+  function showPhoneSequence(delayMs, fromButton) {
+    phoneFromButton = !!fromButton;
+    var remoteWrap = document.getElementById('remoteWrap');
+    var bg = document.getElementById('bgImage');
+    hotspot.style.display = 'none';
+    if (remoteWrap) remoteWrap.classList.add('hidden');
+    document.getElementById('phoneHotspots').style.display = 'none';
+    growSvg.classList.remove('show');
+    if (!fromButton) busy = true;
+
+    bg.src = (window.PRELOADED && window.PRELOADED['Phone1.png']) ? window.PRELOADED['Phone1.png'] : 'Phone1.png';
+    bg.style.maxWidth = '100%';
+    bg.style.maxHeight = '100%';
+
+    // кнопка «Назад» если открыли с кнопки (не из-за разрядки)
+    var backBtn = document.getElementById('phoneBackBtn');
+    if (backBtn) backBtn.style.display = fromButton ? 'block' : 'none';
+
+    setTimeout(function () {
+      bg.src = (window.PRELOADED && window.PRELOADED['Phone.jpeg']) ? window.PRELOADED['Phone.jpeg'] : 'Phone.jpeg';
+      document.getElementById('phoneHotspots').style.display = 'block';
+    }, delayMs);
+  }
+
+  function showOutOfBattery() {
+    showPhoneSequence(3000, false);
+  }
+
+  // Кнопка «Тел.»: Phone1.png 1.5с → Phone.jpeg с хотспотами
+  function openPhone() {
+    if (smoking) return;
+    showPhoneSequence(1500, true);
+  }
+
+  function closePhoneToGame() {
+    var remoteWrap = document.getElementById('remoteWrap');
+    var bg = document.getElementById('bgImage');
+    var backBtn = document.getElementById('phoneBackBtn');
+    if (backBtn) backBtn.style.display = 'none';
+    document.getElementById('phoneHotspots').style.display = 'none';
+    bg.src = (window.PRELOADED && window.PRELOADED['Sid.png']) ? window.PRELOADED['Sid.png'] : 'Sid.png';
+    bg.style.maxWidth = '92%';
+    bg.style.maxHeight = '88%';
+    mainScreen.src = (window.PRELOADED && window.PRELOADED['Pylt.png']) ? window.PRELOADED['Pylt.png'] : 'Pylt.png';
+    if (remoteWrap) remoteWrap.classList.remove('hidden');
+    hotspot.style.display = 'block';
+    hotspot.style.pointerEvents = 'auto';
+    hotspot.disabled = false;
+    if (energy > 0) busy = false;
+    phoneFromButton = false;
+  }
+
+  function selectPack(id) {
+    selectedPack = id;
+    [1, 2, 4].forEach(function (p) {
+      var el = document.getElementById('pack' + p);
+      if (el) el.classList.toggle('selected', p === id);
+    });
+    var pack = BATTERY_PACKS[id];
+    document.getElementById('totalValue').textContent = pack.price + ' USDT';
+  }
+
+  function openMarket() {
+    selectPack(selectedPack || 1);
+    document.getElementById('balanceValue').textContent = balance.toFixed(2) + ' USDT';
+    var invEl = document.getElementById('invCountValue');
+    if (invEl) invEl.textContent = inventory.length + ' / ' + MAX_INV;
+    document.getElementById('marketModal').classList.add('open');
+  }
+  function closeMarket() {
+    document.getElementById('marketModal').classList.remove('open');
+    if (energy === 0 && reserveCharges === 0) busy = true;
+  }
+
+  // Покупка → в инвентарь (не применяет сразу), макс 5
+  function pay() {
+    var pack = BATTERY_PACKS[selectedPack] || BATTERY_PACKS[1];
+    var total = pack.price;
+    if (inventory.length >= MAX_INV) {
+      alert('Инвентарь полон (макс. 5 батареек). Примените или освободите место.');
+      return;
+    }
+    if (balance < total) {
+      alert('Недостаточно средств. Наберите ещё +см, чтобы получить USDT.');
+      return;
+    }
+    balance = +(balance - total).toFixed(2);
+    inventory.push({ type: pack.cycles, cycles: pack.cycles, price: pack.price });
+    balanceTopEl.textContent = balance.toFixed(2);
+    document.getElementById('balanceValue').textContent = balance.toFixed(2) + ' USDT';
+    var invEl = document.getElementById('invCountValue');
+    if (invEl) invEl.textContent = inventory.length + ' / ' + MAX_INV;
+    renderInventory();
+    closeMarket();
+  }
+
+  function openInventory() {
+    renderInventory();
+    document.getElementById('invOverlay').classList.add('open');
+  }
+  function closeInventory() {
+    document.getElementById('invOverlay').classList.remove('open');
+  }
+
+  function renderInventory() {
+    var list = document.getElementById('invBattList');
+    var cnt = document.getElementById('invBattCount');
+    if (cnt) cnt.textContent = inventory.length;
+    if (!list) return;
+    if (!inventory.length) {
+      list.innerHTML = '<div class="inv-empty">Пусто — купите в маркете</div>';
+    } else {
+      list.innerHTML = inventory.map(function (item, idx) {
+        return '<div class="inv-batt-item" onclick="useBattery(' + idx + ')">' +
+          '<div><div class="tag">' + item.type + '×</div>' +
+          '<div class="meta">' + item.cycles + ' цикл(ов) · ' + item.price + ' USDT</div></div>' +
+          '<div class="use-lbl">Применить</div></div>';
+      }).join('');
+    }
+    var wf = document.getElementById('weedFill');
+    var wp = document.getElementById('weedPct');
+    if (wf) wf.style.width = weedPct + '%';
+    if (wp) wp.textContent = weedPct + '%';
+    updateMoodUI();
+  }
+
+  // Применить батарейку из инвентаря к пульту
+  function useBattery(idx) {
+    if (idx < 0 || idx >= inventory.length) return;
+    var item = inventory.splice(idx, 1)[0];
+    energy = 100;
+    reserveCharges = Math.max(0, item.cycles - 1);
+    updateBatteryIcon();
+
+    var remoteWrap = document.getElementById('remoteWrap');
+    var bg = document.getElementById('bgImage');
+    bg.src = (window.PRELOADED && window.PRELOADED['Sid.png']) ? window.PRELOADED['Sid.png'] : 'Sid.png';
+    bg.style.maxWidth = '92%';
+    bg.style.maxHeight = '88%';
+    mainScreen.src = (window.PRELOADED && window.PRELOADED['Pylt.png']) ? window.PRELOADED['Pylt.png'] : 'Pylt.png';
+    if (remoteWrap) remoteWrap.classList.remove('hidden');
+    document.getElementById('phoneHotspots').style.display = 'none';
+    hotspot.style.display = 'block';
+    hotspot.style.pointerEvents = 'auto';
+    hotspot.style.zIndex = '50';
+    hotspot.disabled = false;
+    busy = false;
+    closeInventory();
+    renderInventory();
+  }
+
+  function updateMoodUI() {
+    var mf = document.getElementById('moodFill');
+    var mp = document.getElementById('moodPct');
+    if (mf) mf.style.width = moodPct + '%';
+    if (mp) mp.textContent = moodPct + '%';
+
+    var depRow = document.getElementById('depRow');
+    if (moodPct < 40) {
+      if (!depVisible) {
+        depVisible = true;
+        depPct = Math.max(depPct, 60);
+      }
+      if (depRow) depRow.style.display = 'flex';
+    } else {
+      if (depRow) depRow.style.display = 'none';
+      depVisible = false;
+    }
+    var df = document.getElementById('depFill');
+    var dp = document.getElementById('depPct');
+    if (df) df.style.width = depPct + '%';
+    if (dp) dp.textContent = depPct + '%';
+
+    var sb = document.getElementById('smokeBtn');
+    if (sb) sb.disabled = weedPct <= 0 || smoking;
+    checkOkno();
+  }
+
+  function onMoodMinus() {
+    moodPct = Math.max(0, moodPct - 10);
+    if (moodPct < 40) {
+      if (!depVisible) {
+        depVisible = true;
+        depPct = Math.max(depPct, 60);
+      } else {
+        depPct = Math.min(100, depPct + 10);
+      }
+    }
+    updateMoodUI();
+    checkOkno();
+  }
+
+  function checkOkno() {
+    var okno = document.getElementById('oknoOverlay');
+    if (!okno) return;
+    if (depPct >= 100) {
+      var img = document.getElementById('oknoImg');
+      if (img) {
+        // только если файл реально есть / предзагружен — иначе не спамим 404
+        if (window.PRELOADED && window.PRELOADED['Okno.jpg']) {
+          img.src = window.PRELOADED['Okno.jpg'];
+          okno.classList.add('show');
+        } else {
+          // пробуем один раз; onerror спрячет
+          img.onerror = function () {
+            img.onerror = null;
+            okno.classList.remove('show');
+          };
+          img.src = 'Okno.jpg';
+          okno.classList.add('show');
+        }
+      } else {
+        okno.classList.add('show');
+      }
+    } else {
+      okno.classList.remove('show');
+    }
+  }
+
+  function imgSrc(name) {
+    return (window.PRELOADED && window.PRELOADED[name]) ? window.PRELOADED[name] : name;
+  }
+
+  function openContacts() {
+    renderContacts();
+    document.getElementById('contactsOverlay').classList.add('open');
+  }
+  function closeContacts() {
+    document.getElementById('contactsOverlay').classList.remove('open');
+  }
+
+  function renderContacts() {
+    var list = document.getElementById('contactsList');
+    var hint = document.getElementById('psiHint');
+    if (hint) {
+      if (depPct >= 90 && balance < 1) hint.classList.add('show');
+      else hint.classList.remove('show');
+    }
+    if (!list) return;
+    list.innerHTML = CONTACTS.map(function (c) {
+      var locked = (c.action === 'psi' && depPct < 90);
+      var extra = '';
+      if (c.action === 'psi' && locked) {
+        extra = '<div class="contact-hint">Доступно при депрессии ≥ 90%</div>';
+      }
+      return '<div class="contact-row' + (locked ? ' locked' : '') + '">' +
+        '<img class="contact-avatar" src="' + imgSrc(c.img) + '" alt="" onclick="event.stopPropagation(); zoomPhoto(\'' + c.img + '\')">' +
+        '<div style="flex:1" onclick="onContactTap(\'' + c.id + '\')">' +
+        '<div class="contact-name">' + c.name + '</div>' + extra +
+        '</div></div>';
+    }).join('');
+  }
+
+  function zoomPhoto(name) {
+    var img = document.getElementById('photoZoomImg');
+    img.src = imgSrc(name);
+    document.getElementById('photoZoomOverlay').classList.add('open');
+  }
+  function closePhotoZoom() {
+    document.getElementById('photoZoomOverlay').classList.remove('open');
+  }
+
+  function onContactTap(id) {
+    var c = CONTACTS.filter(function (x) { return x.id === id; })[0];
+    if (!c) return;
+    if (c.action === 'psi') {
+      if (depPct < 90) {
+        alert('Психолог доступен только при депрессии ≥ 90%');
+        return;
+      }
+      closeContacts();
+      playPsychologist();
+      return;
+    }
+    if (c.action === 'bariga') {
+      closeContacts();
+      openBariga();
+      return;
+    }
+    if (c.action === 'bank') {
+      closeContacts();
+      openBank();
+      return;
+    }
+    // chat — просто зум/заглушка
+    alert(c.name + ': (нет сообщений)');
+  }
+
+  function playPsychologist() {
+    var ov = document.getElementById('psiVideoOverlay');
+    var v = document.getElementById('psiVideo');
+    v.src = imgSrc('Psiholog.mp4');
+    ov.classList.add('show');
+    var done = function () {
+      v.onended = null;
+      v.onerror = null;
+      try { v.pause(); } catch (e) {}
+      ov.classList.remove('show');
+      moodPct = Math.min(100, moodPct + 30);
+      if (moodPct >= 40) {
+        depVisible = false;
+        depPct = Math.max(0, depPct - 30);
+      } else {
+        depPct = Math.max(0, depPct - 20);
+      }
+      updateMoodUI();
+      checkOkno();
+    };
+    v.onended = done;
+    v.onerror = done;
+    v.play().catch(done);
+  }
+
+  function openBariga() {
+    updateWeedOrderUI();
+    document.getElementById('barigaOverlay').classList.add('open');
+  }
+  function closeBariga() {
+    document.getElementById('barigaOverlay').classList.remove('open');
+  }
+  function updateWeedOrderUI() {
+    var r = document.getElementById('weedOrderRange');
+    var pct = r ? parseInt(r.value, 10) : 10;
+    var price = pct / 10;
+    document.getElementById('weedOrderPct').textContent = pct + '%';
+    document.getElementById('weedOrderPrice').textContent = price + ' USDT';
+    document.getElementById('weedOrderBal').textContent = balance.toFixed(2) + ' USDT';
+    document.getElementById('weedOrderHave').textContent = weedPct + '%';
+  }
+  function buyWeedFromBariga() {
+    var r = document.getElementById('weedOrderRange');
+    var pct = r ? parseInt(r.value, 10) : 10;
+    var price = pct / 10;
+    if (balance < price) {
+      alert('Недостаточно USDT');
+      return;
+    }
+    if (weedPct + pct > 100) {
+      alert('Пакетик вмещает максимум 100%');
+      return;
+    }
+    balance = +(balance - price).toFixed(2);
+    weedPct = Math.min(100, weedPct + pct);
+    balanceTopEl.textContent = balance.toFixed(2);
+    updateWeedOrderUI();
+    updateMoodUI();
+    renderInventory();
+    alert('Шмаль +' + pct + '%');
+  }
+
+  function openBank() {
+    updateBankUI();
+    document.getElementById('bankOverlay').classList.add('open');
+  }
+  function closeBank() {
+    document.getElementById('bankOverlay').classList.remove('open');
+  }
+  function updateBankUI() {
+    var r = document.getElementById('creditRange');
+    var amt = r ? parseInt(r.value, 10) : 1;
+    document.getElementById('creditVal').textContent = amt;
+    document.getElementById('bankDebt').textContent = bankDebt.toFixed(2) + ' USDT';
+    document.getElementById('bankBal').textContent = balance.toFixed(2) + ' USDT';
+  }
+  function takeCredit() {
+    var r = document.getElementById('creditRange');
+    var amt = r ? parseInt(r.value, 10) : 1;
+    if (bankDebt + amt > 10) {
+      alert('Максимальный долг 10 USDT');
+      return;
+    }
+    bankDebt = +(bankDebt + amt).toFixed(2);
+    balance = +(balance + amt).toFixed(2);
+    balanceTopEl.textContent = balance.toFixed(2);
+    updateBankUI();
+    alert('Кредит +' + amt + ' USDT. Долг: ' + bankDebt + ' USDT');
+  }
+  function repayCredit() {
+    if (bankDebt <= 0) {
+      alert('Долга нет');
+      return;
+    }
+    if (balance < bankDebt) {
+      alert('Недостаточно средств, чтобы погасить весь долг');
+      return;
+    }
+    balance = +(balance - bankDebt).toFixed(2);
+    bankDebt = 0;
+    balanceTopEl.textContent = balance.toFixed(2);
+    updateBankUI();
+    alert('Долг погашен');
+  }
+
+  function doSmoke() {
+    if (smoking || weedPct <= 0) return;
+    smoking = true;
+    var dur = document.getElementById('durOverlay');
+    var durImg = document.getElementById('durImage');
+    if (window.PRELOADED && window.PRELOADED['Dur.jpg']) {
+      durImg.src = window.PRELOADED['Dur.jpg'];
+    } else {
+      durImg.src = 'Dur.jpg';
+    }
+    dur.classList.add('show');
+
+    setTimeout(function () {
+      dur.classList.remove('show');
+      weedPct = Math.max(0, weedPct - 10);
+      moodPct = Math.min(100, moodPct + 10);
+      if (depVisible) {
+        depPct = Math.max(0, depPct - 10);
+        if (moodPct >= 40) {
+          depVisible = false;
+          depPct = 0;
+        }
+      }
+      smoking = false;
+      updateMoodUI();
+      renderInventory();
+    }, 2000);
+  }
+
+  window.openInventory = openInventory;
+  window.closeInventory = closeInventory;
+  window.useBattery = useBattery;
+  window.doSmoke = doSmoke;
+  window.selectPack = selectPack;
+  window.openMarket = openMarket;
+  window.closeMarket = closeMarket;
+  window.pay = pay;
+  function openHelp() {
+    document.getElementById('helpOverlay').classList.add('open');
+  }
+  function closeHelp() {
+    document.getElementById('helpOverlay').classList.remove('open');
+  }
+
+  window.openHelp = openHelp;
+  window.closeHelp = closeHelp;
+  window.openPhone = openPhone;
+  window.closePhoneToGame = closePhoneToGame;
+  window.openContacts = openContacts;
+  window.closeContacts = closeContacts;
+  window.zoomPhoto = zoomPhoto;
+  window.closePhotoZoom = closePhotoZoom;
+  window.onContactTap = onContactTap;
+  window.openBariga = openBariga;
+  window.closeBariga = closeBariga;
+  window.updateWeedOrderUI = updateWeedOrderUI;
+  window.buyWeedFromBariga = buyWeedFromBariga;
+  window.openBank = openBank;
+  window.closeBank = closeBank;
+  window.updateBankUI = updateBankUI;
+  window.takeCredit = takeCredit;
+  window.repayCredit = repayCredit;
+  window.changeQty = function () {};
+
+  mainScreen.addEventListener('error', function () {
+    document.getElementById('fileErrorName').textContent = 'Файл "' + mainScreen.getAttribute('src') + '" не найден';
+    document.getElementById('fileError').style.display = 'flex';
+  });
+  mainScreen.addEventListener('load', function () {
+    document.getElementById('fileError').style.display = 'none';
+  });
+
+  updateBatteryIcon();
+  renderSvgLength(score);
+  updateMoodUI();
+  document.getElementById('phoneHotspots').style.display = 'none';
+  hotspot.style.zIndex = '50';
+  hotspot.style.pointerEvents = 'auto';
+  hotspot.disabled = false;
+</script>
+</body>
+</html>
